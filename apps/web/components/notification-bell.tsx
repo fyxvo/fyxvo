@@ -1,28 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getNotifications } from "../lib/api";
+import { getNotifications, markNotificationRead, markAllNotificationsRead } from "../lib/api";
 import { formatRelativeDate } from "../lib/format";
 import type { Notification } from "../lib/types";
-
-const READ_KEY = "fyxvo-read-notifications";
-
-function getReadIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem(READ_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveReadIds(ids: Set<string>) {
-  try {
-    localStorage.setItem(READ_KEY, JSON.stringify([...ids].slice(-200)));
-  } catch {
-    // ignore
-  }
-}
 
 function typeIcon(type: Notification["type"]) {
   switch (type) {
@@ -66,12 +47,11 @@ function typeIcon(type: Notification["type"]) {
 
 export function NotificationBell({ token }: { readonly token: string }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [readIds, setReadIds] = useState<Set<string>>(() => getReadIds());
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
 
-  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
     let cancelled = false;
@@ -114,15 +94,13 @@ export function NotificationBell({ token }: { readonly token: string }) {
   }, [open]);
 
   function markAllRead() {
-    const newRead = new Set([...readIds, ...notifications.map((n) => n.id)]);
-    setReadIds(newRead);
-    saveReadIds(newRead);
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    void markAllNotificationsRead(token).catch(() => undefined);
   }
 
   function markRead(id: string) {
-    const newRead = new Set([...readIds, id]);
-    setReadIds(newRead);
-    saveReadIds(newRead);
+    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+    void markNotificationRead(id, token).catch(() => undefined);
   }
 
   return (
@@ -186,7 +164,7 @@ export function NotificationBell({ token }: { readonly token: string }) {
             ) : (
               <div className="divide-y divide-[var(--fyxvo-border)]">
                 {notifications.map((n) => {
-                  const isRead = readIds.has(n.id);
+                  const isRead = n.read;
                   return (
                     <div
                       key={n.id}

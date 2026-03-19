@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn, Button } from "@fyxvo/ui";
@@ -21,6 +21,7 @@ import {
 } from "./icons";
 import { usePortal } from "./portal-provider";
 import { NotificationBell } from "./notification-bell";
+import { CommandPalette } from "./command-palette";
 import { shortenAddress } from "../lib/format";
 
 const navItems = [
@@ -156,23 +157,39 @@ export function DashShell({ children }: { readonly children: React.ReactNode }) 
   const portal = usePortal();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Close the mobile drawer whenever the route changes
+  useEffect(() => {
+    startTransition(() => setSidebarOpen(false));
+  }, [pathname]);
+
   return (
     <div className="relative flex min-h-screen">
       <aside className="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-[var(--fyxvo-border)] lg:bg-[var(--fyxvo-bg)]">
         <SidebarContent pathname={pathname} />
       </aside>
 
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setSidebarOpen(false)}
-          />
-          <aside className="fixed left-0 top-0 h-full w-72 border-r border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg-elevated)] shadow-2xl">
-            <SidebarContent pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
-          </aside>
-        </div>
-      )}
+      {/* Mobile drawer — always rendered, animated in/out via translate */}
+      <div
+        className={cn(
+          "fixed inset-0 z-50 lg:hidden transition-opacity duration-200",
+          sidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        )}
+      >
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+        />
+        {/* Drawer panel */}
+        <aside
+          className={cn(
+            "fixed left-0 top-0 h-full w-72 border-r border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg-elevated)] shadow-2xl transition-transform duration-200 ease-in-out",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
+          <SidebarContent pathname={pathname} onNavigate={() => setSidebarOpen(false)} />
+        </aside>
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)]/90 px-4 backdrop-blur lg:hidden">
@@ -192,15 +209,15 @@ export function DashShell({ children }: { readonly children: React.ReactNode }) 
           </div>
         </header>
 
-        {/* Desktop notification bell in sidebar header */}
-
-
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
             {children}
           </div>
         </main>
       </div>
+
+      {/* Command palette — fixed position, renders on top of everything */}
+      <CommandPalette />
     </div>
   );
 }

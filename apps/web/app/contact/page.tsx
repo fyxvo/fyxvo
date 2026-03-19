@@ -1,9 +1,27 @@
+import type { Metadata } from "next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Notice } from "@fyxvo/ui";
 import { FeedbackCaptureForm } from "../../components/feedback-capture-form";
 import { InterestCaptureForm } from "../../components/interest-capture-form";
 import { PageHeader } from "../../components/page-header";
 import { SocialLinkButtons } from "../../components/social-links";
 import { TrackedLinkButton } from "../../components/tracked-link-button";
+import { webEnv } from "../../lib/env";
+
+export const metadata: Metadata = {
+  title: "Contact — Fyxvo",
+  description: "Reach Fyxvo for alpha access, rollout planning, founder follow-up, or support. Both interest and feedback routes land directly in the product review flow.",
+  openGraph: {
+    title: "Contact — Fyxvo",
+    description: "Reach Fyxvo for alpha access, rollout planning, founder follow-up, or support. Both interest and feedback routes land directly in the product review flow.",
+    images: [{ url: webEnv.socialImageUrl }]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Contact — Fyxvo",
+    description: "Reach Fyxvo for alpha access, rollout planning, founder follow-up, or support. Both interest and feedback routes land directly in the product review flow.",
+    images: [webEnv.socialImageUrl]
+  }
+};
 
 export default function ContactPage() {
   return (

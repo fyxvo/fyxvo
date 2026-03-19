@@ -10,12 +10,14 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Input,
   Notice,
 } from "@fyxvo/ui";
 import { PageHeader } from "../../components/page-header";
 import { usePortal } from "../../components/portal-provider";
 import { ThemeToggle } from "../../components/theme-toggle";
 import { shortenAddress } from "../../lib/format";
+import { webEnv } from "../../lib/env";
 
 function SettingRow({
   label,
@@ -62,8 +64,69 @@ function SectionCard({
 export default function SettingsPage() {
   const portal = usePortal();
   const [dangerConfirm, setDangerConfirm] = useState(false);
+  const [displayName, setDisplayName] = useState(
+    (portal.selectedProject as { displayName?: string } | null)?.displayName ?? ""
+  );
+  const [displayNameSaving, setDisplayNameSaving] = useState(false);
+  const [lowBalanceSol, setLowBalanceSol] = useState(
+    (portal.selectedProject as { lowBalanceThresholdSol?: number } | null)?.lowBalanceThresholdSol?.toString() ?? ""
+  );
+  const [lowBalanceSolSaving, setLowBalanceSolSaving] = useState(false);
+  const [dailyAlertThreshold, setDailyAlertThreshold] = useState("");
+  const [dailyAlertSaving, setDailyAlertSaving] = useState(false);
 
   const isAuthenticated = portal.walletPhase === "authenticated";
+
+  async function saveDisplayName() {
+    if (!portal.selectedProject || !portal.token) return;
+    setDisplayNameSaving(true);
+    try {
+      await fetch(new URL(`/v1/projects/${portal.selectedProject.id}`, webEnv.apiBaseUrl), {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${portal.token}`,
+        },
+        body: JSON.stringify({ displayName }),
+      });
+    } finally {
+      setDisplayNameSaving(false);
+    }
+  }
+
+  async function saveLowBalanceSol() {
+    if (!portal.selectedProject || !portal.token) return;
+    setLowBalanceSolSaving(true);
+    try {
+      await fetch(new URL(`/v1/projects/${portal.selectedProject.id}`, webEnv.apiBaseUrl), {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${portal.token}`,
+        },
+        body: JSON.stringify({ lowBalanceThresholdSol: lowBalanceSol === "" ? 0 : Number(lowBalanceSol) }),
+      });
+    } finally {
+      setLowBalanceSolSaving(false);
+    }
+  }
+
+  async function saveDailyAlertThreshold() {
+    if (!portal.selectedProject || !portal.token) return;
+    setDailyAlertSaving(true);
+    try {
+      await fetch(new URL(`/v1/projects/${portal.selectedProject.id}`, webEnv.apiBaseUrl), {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${portal.token}`,
+        },
+        body: JSON.stringify({ dailyRequestAlertThreshold: dailyAlertThreshold === "" ? 0 : Number(dailyAlertThreshold) }),
+      });
+    } finally {
+      setDailyAlertSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -242,6 +305,104 @@ export default function SettingsPage() {
               <Link href="/status">View status</Link>
             </Button>
           </SettingRow>
+        </SectionCard>
+
+        {/* Team & Ownership */}
+        <SectionCard
+          title="Team & Ownership"
+          description="Project ownership and collaboration settings."
+        >
+          <SettingRow
+            label="Project owner"
+            description="The wallet that owns the currently selected project."
+          >
+            {portal.selectedProject ? (
+              <span className="font-mono text-sm text-[var(--fyxvo-text)]">
+                {shortenAddress(portal.selectedProject.owner.walletAddress, 8, 8)}
+              </span>
+            ) : (
+              <span className="text-sm text-[var(--fyxvo-text-muted)]">No project selected</span>
+            )}
+          </SettingRow>
+          <SettingRow
+            label="Project display name"
+            description="A human-readable label shown in the project header. Stored in the database."
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="e.g. My Production Project"
+                className="h-9 text-sm"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void saveDisplayName()}
+                disabled={displayNameSaving || !portal.selectedProject || !portal.token}
+              >
+                {displayNameSaving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </SettingRow>
+          <Notice tone="neutral">
+            The current version is single-owner per project. Team collaboration roles are on the roadmap.
+          </Notice>
+        </SectionCard>
+
+        {/* Usage Alerts */}
+        <SectionCard
+          title="Usage Alerts"
+          description="Configure automatic notifications for project thresholds."
+        >
+          <SettingRow
+            label="Low balance threshold (SOL)"
+            description="Get notified when available SOL credits drop below this amount. Set to 0 to disable."
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                value={lowBalanceSol}
+                onChange={(e) => setLowBalanceSol(e.target.value)}
+                placeholder="0"
+                className="h-9 text-sm"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void saveLowBalanceSol()}
+                disabled={lowBalanceSolSaving || !portal.selectedProject || !portal.token}
+              >
+                {lowBalanceSolSaving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </SettingRow>
+          <SettingRow
+            label="Daily request alert"
+            description="Get notified when daily requests exceed this count. Set to 0 to disable."
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                value={dailyAlertThreshold}
+                onChange={(e) => setDailyAlertThreshold(e.target.value)}
+                placeholder="0"
+                className="h-9 text-sm"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void saveDailyAlertThreshold()}
+                disabled={dailyAlertSaving || !portal.selectedProject || !portal.token}
+              >
+                {dailyAlertSaving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </SettingRow>
+          <Notice tone="neutral" title="How alerts work">
+            When thresholds are crossed, a notification appears in the bell icon in the dashboard header.
+            Low-balance checks run with each metrics aggregation cycle.
+          </Notice>
         </SectionCard>
 
         {/* Danger Zone */}

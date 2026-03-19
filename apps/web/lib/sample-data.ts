@@ -25,11 +25,14 @@ export const previewProjects: PortalProject[] = [
     id: "preview-project-1",
     slug: "solstice-labs",
     name: "Solstice Labs",
+    displayName: null,
     description:
       "High-throughput Solana infrastructure for treasury automation, webhook relays, and wallet-triggered execution.",
     chainProjectId: "18",
     onChainProjectPda: "9w5M8wQJRmL6x4uJg4gN8J7kY7YQu2D38R4Uu5qN4r7D",
     ownerId: owner.id,
+    lowBalanceThresholdSol: null,
+    dailyRequestAlertThreshold: null,
     owner,
     _count: {
       apiKeys: 4,
@@ -41,11 +44,14 @@ export const previewProjects: PortalProject[] = [
     id: "preview-project-2",
     slug: "aurora-payments",
     name: "Aurora Payments",
+    displayName: null,
     description:
       "Priority relay traffic for settlement, merchant callbacks, and regional node failover on devnet.",
     chainProjectId: "21",
     onChainProjectPda: "7xLh7MrmP3nxu8yWJr3uL2yK8nZ7nN8hQn6T7xV2N8P1",
     ownerId: owner.id,
+    lowBalanceThresholdSol: null,
+    dailyRequestAlertThreshold: null,
     owner,
     _count: {
       apiKeys: 2,

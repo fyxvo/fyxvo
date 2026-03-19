@@ -195,6 +195,26 @@ export async function createProject(input: {
   );
 }
 
+export async function updateProject(input: {
+  readonly projectId: string;
+  readonly token: string;
+  readonly displayName?: string | null;
+  readonly lowBalanceThresholdSol?: number | null;
+  readonly dailyRequestAlertThreshold?: number | null;
+  readonly name?: string;
+  readonly description?: string | null;
+}) {
+  const { projectId, token, ...body } = input;
+  return requestApi<{ item: PortalProject }>(
+    `/v1/projects/${projectId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    },
+    token
+  );
+}
+
 export async function deleteProject(input: {
   readonly projectId: string;
   readonly token: string;
@@ -286,6 +306,14 @@ export async function getProjectAnalytics(projectId: string, token: string, rang
 export async function getNotifications(token: string) {
   const response = await requestApi<{ items: Notification[] }>("/v1/notifications", undefined, token);
   return response.items;
+}
+
+export async function markNotificationRead(notificationId: string, token: string) {
+  await requestApi<{ ok: boolean }>(`/v1/notifications/${notificationId}/read`, { method: "POST" }, token);
+}
+
+export async function markAllNotificationsRead(token: string) {
+  await requestApi<{ ok: boolean }>("/v1/notifications/read-all", { method: "POST" }, token);
 }
 
 export async function getApiKeyAnalytics(projectId: string, apiKeyId: string, token: string, range?: AnalyticsRange) {

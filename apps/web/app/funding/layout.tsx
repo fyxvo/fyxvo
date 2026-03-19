@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Funding",
+  title: "Funding — Fyxvo",
   description: "Fund your Fyxvo project on chain with devnet SOL. Track treasury balance, prepare funding coordinates, and confirm reserve health.",
 };
 

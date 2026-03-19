@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "API Keys",
+  title: "API Keys — Fyxvo",
   description: "Create scoped API keys for relay traffic, analytics, and internal tools. Each key carries explicit permissions and a full usage history.",
 };
 

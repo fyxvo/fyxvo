@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Projects",
+  title: "Projects — Fyxvo",
   description: "Manage your Fyxvo projects: activate on chain, monitor treasury, issue API keys, and track request activity per project.",
 };
 

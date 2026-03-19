@@ -83,6 +83,7 @@ model User {
   apiKeys            ApiKey[]
   requestLogs        RequestLog[]
   fundingCoordinated FundingCoordinate[]
+  notifications      Notification[]
 }
 
 model InterestSubmission {
@@ -128,24 +129,28 @@ model FeedbackSubmission {
 }
 
 model Project {
-  id                String              @id @default(uuid()) @db.Uuid
-  slug              String              @unique
-  name              String
-  description       String?
-  chainProjectId    BigInt              @unique
-  onChainProjectPda String              @unique
-  ownerId           String              @db.Uuid
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  owner             User                @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  apiKeys           ApiKey[]
-  requestLogs       RequestLog[]
-  nodes             Node[]
-  fundingRequests   FundingCoordinate[]
-  usageRollups      ProjectUsageRollup[]
-  walletActivities  WalletActivity[]
-  rewardSnapshots   OperatorRewardSnapshot[]
-  feedbackSubmissions FeedbackSubmission[]
+  id                         String              @id @default(uuid()) @db.Uuid
+  slug                       String              @unique
+  name                       String
+  displayName                String?
+  description                String?
+  chainProjectId             BigInt              @unique
+  onChainProjectPda          String              @unique
+  ownerId                    String              @db.Uuid
+  lowBalanceThresholdSol     Float?
+  dailyRequestAlertThreshold Int?
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  owner                      User                @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  apiKeys                    ApiKey[]
+  requestLogs                RequestLog[]
+  nodes                      Node[]
+  fundingRequests            FundingCoordinate[]
+  usageRollups               ProjectUsageRollup[]
+  walletActivities           WalletActivity[]
+  rewardSnapshots            OperatorRewardSnapshot[]
+  feedbackSubmissions        FeedbackSubmission[]
+  notifications              Notification[]
 
   @@index([ownerId])
 }
@@ -367,6 +372,23 @@ model NodeHealthCheck {
   node          Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 
   @@index([nodeId, checkedAt])
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  metadata  Json?
+  projectId String?  @db.Uuid
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, read])
 }
 
 model OperatorRewardSnapshot {

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Operators",
+  title: "Operators — Fyxvo",
   description: "View the managed relay operators powering the Fyxvo devnet gateway, including uptime, routing share, and reward accrual.",
 };
 

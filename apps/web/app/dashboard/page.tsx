@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Badge,
   Button,
@@ -16,7 +17,8 @@ import {
   Table,
   type TableColumn,
 } from "@fyxvo/ui";
-import { LineChartCard } from "../../components/charts";
+import dynamic from "next/dynamic";
+const LineChartCard = dynamic(() => import("../../components/charts").then((m) => ({ default: m.LineChartCard })), { ssr: false, loading: () => <div className="h-56 animate-pulse rounded-2xl bg-[var(--fyxvo-panel-soft)]" /> });
 import { CopyButton } from "../../components/copy-button";
 import { DeltaBadge, MetricCard } from "../../components/metric-card";
 import { PageHeader } from "../../components/page-header";
@@ -298,10 +300,29 @@ function buildOpsItems(overview: AdminOverview | null) {
 
 export default function DashboardPage() {
   const portal = usePortal();
+  const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+
+  function handleCreateClose() {
+    setCreateOpen(false);
+    setCreateStep(1);
+    setSlug("");
+    setName("");
+    setDescription("");
+  }
+
+  // Navigate to project page after successful creation
+  useEffect(() => {
+    if (portal.projectCreationState.phase === "confirmed" && slug && createOpen) {
+      handleCreateClose();
+      router.push(`/projects/${slug}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portal.projectCreationState.phase]);
 
   const hasProjects = portal.projects.length > 0;
   const workspaceSections = getWorkspaceSections(portal.selectedProject?.slug);
@@ -420,80 +441,151 @@ export default function DashboardPage() {
 
       <Modal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="Create a devnet project"
-        description="Project creation prepares the real activation transaction right away, so funding and relay usage can begin immediately after confirmation."
+        onClose={handleCreateClose}
+        title={
+          createStep === 1 ? "Name your project" :
+          createStep === 2 ? "Confirm network" :
+          "Review and activate"
+        }
+        description={
+          createStep === 1 ? "Give your project a name. The slug is generated automatically and can be adjusted." :
+          createStep === 2 ? "Fyxvo operates on Solana devnet. Mainnet support is on the roadmap." :
+          "Confirm the details below. Activation creates the on-chain project account."
+        }
         footer={
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-[var(--fyxvo-text-muted)]">
-              {portal.projectCreationState.message}
+              Step {createStep} of 3{createStep === 3 ? ` · ${portal.projectCreationState.message}` : ""}
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="ghost" onClick={() => setCreateOpen(false)}>
-                Close
-              </Button>
-              <Button
-                onClick={() => {
-                  void portal
-                    .createProject({
+              {createStep > 1 ? (
+                <Button variant="ghost" onClick={() => setCreateStep((s) => (s - 1) as 1 | 2 | 3)}>
+                  Back
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={handleCreateClose}>
+                  Cancel
+                </Button>
+              )}
+              {createStep < 3 ? (
+                <Button
+                  onClick={() => setCreateStep((s) => (s + 1) as 1 | 2 | 3)}
+                  disabled={createStep === 1 && (!name || name.trim().length < 2)}
+                >
+                  Continue
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    void portal.createProject({
                       slug,
                       name,
                       ...(description ? { description } : {}),
-                    })
-                    .then(() => {
-                      setCreateOpen(false);
-                      setSlug("");
-                      setName("");
-                      setDescription("");
                     });
-                }}
-                loading={
-                  portal.projectCreationState.phase === "preparing" ||
-                  portal.projectCreationState.phase === "awaiting_signature" ||
-                  portal.projectCreationState.phase === "submitting"
-                }
-                disabled={!slug || !name || portal.walletPhase !== "authenticated"}
-              >
-                Activate project
-              </Button>
+                  }}
+                  loading={
+                    portal.projectCreationState.phase === "preparing" ||
+                    portal.projectCreationState.phase === "awaiting_signature" ||
+                    portal.projectCreationState.phase === "submitting"
+                  }
+                  disabled={!slug || !name || portal.walletPhase !== "authenticated"}
+                >
+                  Activate project
+                </Button>
+              )}
             </div>
           </div>
         }
       >
-        <div className="space-y-4">
-          <Input
-            label="Project name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Northwind Relay"
-          />
-          <Input
-            label="Project slug"
-            value={slug}
-            onChange={(event) =>
-              setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
-            }
-            placeholder="northwind-relay"
-            hint="Lowercase letters, numbers, and single hyphens only."
-          />
-          <label className="flex flex-col gap-2 text-sm">
-            <span className="font-medium text-[var(--fyxvo-text-soft)]">Description</span>
-            <textarea
-              className="min-h-28 rounded-[1.6rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] px-4 py-3 text-[var(--fyxvo-text)] outline-none transition focus:border-brand-400"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Explain how this project will use Fyxvo on devnet."
+        {createStep === 1 && (
+          <div className="space-y-4">
+            <Input
+              label="Project name"
+              value={name}
+              onChange={(event) => {
+                const v = event.target.value;
+                setName(v);
+                setSlug(v.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 64));
+              }}
+              placeholder="Northwind Relay"
             />
-          </label>
-          {portal.projectCreationState.signature ? (
-            <Notice
-              tone={portal.projectCreationState.phase === "error" ? "warning" : "success"}
-              title="Latest activation signature"
-            >
-              <div className="break-all">{portal.projectCreationState.signature}</div>
-            </Notice>
-          ) : null}
-        </div>
+            <Input
+              label="Project slug"
+              value={slug}
+              onChange={(event) =>
+                setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
+              }
+              placeholder="northwind-relay"
+              hint="Lowercase letters, numbers, and hyphens only. Auto-generated from the name."
+            />
+            <label className="flex flex-col gap-2 text-sm">
+              <span className="font-medium text-[var(--fyxvo-text-soft)]">Description (optional)</span>
+              <textarea
+                className="min-h-20 rounded-[1.6rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] px-4 py-3 text-[var(--fyxvo-text)] outline-none transition focus:border-brand-400"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Explain how this project will use Fyxvo on devnet."
+              />
+            </label>
+          </div>
+        )}
+        {createStep === 2 && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">Network</p>
+                  <p className="mt-1 font-display text-lg font-semibold text-[var(--fyxvo-text)]">Solana Devnet</p>
+                </div>
+                <Badge tone="success">Selected</Badge>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+                All relay traffic, funding flows, and analytics run on devnet. No real SOL is at risk.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5 opacity-50">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">Network</p>
+                  <p className="mt-1 font-display text-lg font-semibold text-[var(--fyxvo-text)]">Solana Mainnet</p>
+                </div>
+                <Badge tone="neutral">Coming soon</Badge>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+                Mainnet support is on the roadmap. Devnet-graduated projects will have a clear migration path.
+              </p>
+            </div>
+          </div>
+        )}
+        {createStep === 3 && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5 space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-[var(--fyxvo-text-muted)]">Name</span>
+                <span className="font-medium text-[var(--fyxvo-text)]">{name}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-[var(--fyxvo-text-muted)]">Slug</span>
+                <span className="font-mono text-sm text-[var(--fyxvo-text)]">{slug}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-[var(--fyxvo-text-muted)]">Network</span>
+                <Badge tone="success">Solana Devnet</Badge>
+              </div>
+              {description ? (
+                <div className="border-t border-[var(--fyxvo-border)] pt-3">
+                  <p className="text-xs text-[var(--fyxvo-text-muted)]">Description</p>
+                  <p className="mt-1 text-sm text-[var(--fyxvo-text-soft)]">{description}</p>
+                </div>
+              ) : null}
+            </div>
+            {portal.projectCreationState.phase === "error" ? (
+              <Notice tone="warning" title="Activation failed">
+                {portal.projectCreationState.message}
+              </Notice>
+            ) : null}
+          </div>
+        )}
       </Modal>
 
       {!portal.loading && portal.walletPhase === "authenticated" && !hasProjects ? (

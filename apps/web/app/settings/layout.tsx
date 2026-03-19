@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Settings",
+  title: "Settings — Fyxvo",
   description: "Manage your Fyxvo workspace preferences, project defaults, and notification settings.",
 };
 

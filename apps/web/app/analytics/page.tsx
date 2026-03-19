@@ -11,7 +11,9 @@ import {
   CardTitle,
   Notice,
 } from "@fyxvo/ui";
-import { BarChartCard, LineChartCard } from "../../components/charts";
+import dynamic from "next/dynamic";
+const BarChartCard = dynamic(() => import("../../components/charts").then((m) => ({ default: m.BarChartCard })), { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-[var(--fyxvo-panel-soft)]" /> });
+const LineChartCard = dynamic(() => import("../../components/charts").then((m) => ({ default: m.LineChartCard })), { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-[var(--fyxvo-panel-soft)]" /> });
 import { MetricCard, DeltaBadge } from "../../components/metric-card";
 import { PageHeader } from "../../components/page-header";
 import { AuthGate } from "../../components/state-panels";

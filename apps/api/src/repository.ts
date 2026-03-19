@@ -15,6 +15,7 @@ import type {
   CreateFeedbackSubmissionInput,
   CreateInterestSubmissionInput,
   CreateApiKeyInput,
+  CreateNotificationInput,
   CreateProjectInput,
   ErrorLogItem,
   FundingRecordInput,
@@ -210,7 +211,10 @@ export class PrismaApiRepository implements ApiRepository {
       data: {
         ...(input.slug !== undefined ? { slug: input.slug } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),
-        ...(input.description !== undefined ? { description: input.description } : {})
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
+        ...(input.lowBalanceThresholdSol !== undefined ? { lowBalanceThresholdSol: input.lowBalanceThresholdSol } : {}),
+        ...(input.dailyRequestAlertThreshold !== undefined ? { dailyRequestAlertThreshold: input.dailyRequestAlertThreshold } : {})
       },
       include: {
         owner: true,
@@ -818,84 +822,63 @@ export class PrismaApiRepository implements ApiRepository {
     });
   }
 
-  async getNotifications(userId: string, projectIds: readonly string[]): Promise<NotificationItem[]> {
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const projectFilter = projectIds.length > 0 ? { in: projectIds as string[] } : undefined;
+  async getNotifications(userId: string, _projectIds: readonly string[]): Promise<NotificationItem[]> {
+    const rows = await this.prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { project: { select: { id: true, name: true } } }
+    });
 
-    const [recentFunding, recentKeys, recentRevocations] = await Promise.all([
-      this.prisma.fundingCoordinate.findMany({
-        where: {
-          requestedById: userId,
-          confirmedAt: { not: null, gte: since }
-        },
-        orderBy: { confirmedAt: "desc" },
-        take: 10,
-        include: { project: { select: { id: true, name: true } } }
-      }),
-      this.prisma.apiKey.findMany({
-        where: {
-          createdById: userId,
-          createdAt: { gte: since },
-          ...(projectFilter ? { projectId: { in: projectFilter.in } } : {})
-        },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        include: { project: { select: { id: true, name: true } } }
-      }),
-      this.prisma.apiKey.findMany({
-        where: {
-          createdById: userId,
-          status: "REVOKED",
-          revokedAt: { gte: since },
-          ...(projectFilter ? { projectId: { in: projectFilter.in } } : {})
-        },
-        orderBy: { revokedAt: "desc" },
-        take: 5,
-        include: { project: { select: { id: true, name: true } } }
-      })
-    ]);
+    return rows.map((n) => ({
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      read: n.read,
+      projectId: n.projectId ?? null,
+      projectName: n.project?.name ?? null,
+      createdAt: n.createdAt.toISOString()
+    }));
+  }
 
-    const notifications: NotificationItem[] = [];
+  async createNotification(input: CreateNotificationInput): Promise<NotificationItem> {
+    const n = await this.prisma.notification.create({
+      data: {
+        userId: input.userId,
+        type: input.type,
+        title: input.title,
+        message: input.message,
+        ...(input.projectId ? { projectId: input.projectId } : {}),
+        ...(input.metadata ? { metadata: input.metadata as PrismaNamespace.InputJsonValue } : {})
+      },
+      include: { project: { select: { id: true, name: true } } }
+    });
 
-    for (const fc of recentFunding) {
-      notifications.push({
-        id: `funding-${fc.id}`,
-        type: "funding_confirmed",
-        title: "SOL deposit confirmed",
-        message: `${(Number(fc.amount) / 1e9).toFixed(4)} SOL funded to ${fc.project.name}`,
-        projectId: fc.projectId,
-        projectName: fc.project.name,
-        createdAt: (fc.confirmedAt ?? fc.createdAt).toISOString()
-      });
-    }
+    return {
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      read: n.read,
+      projectId: n.projectId ?? null,
+      projectName: n.project?.name ?? null,
+      createdAt: n.createdAt.toISOString()
+    };
+  }
 
-    for (const key of recentKeys) {
-      notifications.push({
-        id: `apikey-created-${key.id}`,
-        type: "api_key_created",
-        title: "API key created",
-        message: `Key "${key.label}" (${key.prefix}…) created for ${key.project.name}`,
-        projectId: key.projectId,
-        projectName: key.project.name,
-        createdAt: key.createdAt.toISOString()
-      });
-    }
+  async markNotificationRead(userId: string, notificationId: string): Promise<void> {
+    await this.prisma.notification.updateMany({
+      where: { id: notificationId, userId },
+      data: { read: true }
+    });
+  }
 
-    for (const key of recentRevocations) {
-      notifications.push({
-        id: `apikey-revoked-${key.id}`,
-        type: "api_key_revoked",
-        title: "API key revoked",
-        message: `Key "${key.label}" (${key.prefix}…) was revoked from ${key.project.name}`,
-        projectId: key.projectId,
-        projectName: key.project.name,
-        createdAt: (key.revokedAt ?? key.updatedAt).toISOString()
-      });
-    }
-
-    return notifications.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    ).slice(0, 20);
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await this.prisma.notification.updateMany({
+      where: { userId, read: false },
+      data: { read: true }
+    });
   }
 
   async getProjectAnalytics(projectId: string, since?: Date): Promise<ProjectAnalytics> {

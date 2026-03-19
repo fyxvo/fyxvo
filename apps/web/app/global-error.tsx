@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Button, Notice } from "@fyxvo/ui";
 import { BrandLogo } from "../components/brand-logo";
 
@@ -28,6 +29,22 @@ export default function GlobalError({
               {getSafeMessage(error)}
             </Notice>
             <Button onClick={() => reset()}>Reload application</Button>
+            <div className="flex flex-wrap gap-3 text-sm">
+              <Link
+                href="https://status.fyxvo.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--fyxvo-text-muted)] underline hover:text-[var(--fyxvo-text)]"
+              >
+                Check status
+              </Link>
+              <Link
+                href="/contact"
+                className="text-[var(--fyxvo-text-muted)] underline hover:text-[var(--fyxvo-text)]"
+              >
+                Contact support
+              </Link>
+            </div>
           </div>
         </main>
       </body>

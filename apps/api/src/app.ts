@@ -83,7 +83,10 @@ const updateProjectSchema = z.object({
     .regex(/^[a-z0-9-]+$/)
     .optional(),
   name: z.string().trim().min(2).max(128).optional(),
-  description: z.string().trim().max(500).nullable().optional()
+  description: z.string().trim().max(500).nullable().optional(),
+  displayName: z.string().trim().max(128).nullable().optional(),
+  lowBalanceThresholdSol: z.number().min(0).max(1000).nullable().optional(),
+  dailyRequestAlertThreshold: z.number().int().min(0).max(10_000_000).nullable().optional()
 });
 
 const createApiKeySchema = z.object({
@@ -955,7 +958,10 @@ export async function buildApiApp(input: {
     const updateInput = {
       ...(body.slug !== undefined ? { slug: body.slug } : {}),
       ...(body.name !== undefined ? { name: body.name } : {}),
-      ...(body.description !== undefined ? { description: body.description } : {})
+      ...(body.description !== undefined ? { description: body.description } : {}),
+      ...(body.displayName !== undefined ? { displayName: body.displayName } : {}),
+      ...(body.lowBalanceThresholdSol !== undefined ? { lowBalanceThresholdSol: body.lowBalanceThresholdSol } : {}),
+      ...(body.dailyRequestAlertThreshold !== undefined ? { dailyRequestAlertThreshold: body.dailyRequestAlertThreshold } : {})
     };
 
     return {
@@ -1012,6 +1018,14 @@ export async function buildApiApp(input: {
         expiresAt: body.expiresAt ? new Date(body.expiresAt) : null
       });
 
+      void input.repository.createNotification({
+        userId: user.id,
+        type: "api_key_created",
+        title: "API key created",
+        message: `Key "${body.label}" was created for project "${project.name}"`,
+        projectId: project.id
+      }).catch(() => undefined);
+
       return {
         statusCode: 201,
         body: {
@@ -1041,6 +1055,14 @@ export async function buildApiApp(input: {
     if (!apiKey) {
       throw new HttpError(404, "api_key_not_found", "The requested API key could not be found.");
     }
+
+    void input.repository.createNotification({
+      userId: user.id,
+      type: "api_key_revoked",
+      title: "API key revoked",
+      message: `Key "${apiKey.label}" (${apiKey.prefix}…) was revoked from "${project.name}"`,
+      projectId: project.id
+    }).catch(() => undefined);
 
     return { item: apiKey };
   });
@@ -1161,6 +1183,14 @@ export async function buildApiApp(input: {
       confirmedAt: new Date(verification.confirmedAt)
     });
 
+    void input.repository.createNotification({
+      userId: user.id,
+      type: "funding_confirmed",
+      title: "SOL deposit confirmed",
+      message: `${(Number(fundingRecord.amount) / 1e9).toFixed(4)} SOL funded to "${project.name}"`,
+      projectId: project.id
+    }).catch(() => undefined);
+
     return {
       item: {
         fundingRequestId: fundingRecord.id,
@@ -1221,6 +1251,19 @@ export async function buildApiApp(input: {
     return {
       items: await input.repository.getNotifications(user.id, projectIds)
     };
+  });
+
+  app.post("/v1/notifications/:notificationId/read", async (request) => {
+    const user = requireUser(request);
+    const params = z.object({ notificationId: z.string().uuid() }).parse(request.params);
+    await input.repository.markNotificationRead(user.id, params.notificationId);
+    return { ok: true };
+  });
+
+  app.post("/v1/notifications/read-all", async (request) => {
+    const user = requireUser(request);
+    await input.repository.markAllNotificationsRead(user.id);
+    return { ok: true };
   });
 
   app.get("/v1/projects/:projectId/api-keys/:apiKeyId/analytics", async (request) => {

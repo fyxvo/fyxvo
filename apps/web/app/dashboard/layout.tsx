@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "Dashboard — Fyxvo",
   description: "Your Fyxvo workspace overview: gateway health, project status, API key activity, and on-chain balance at a glance.",
 };
 

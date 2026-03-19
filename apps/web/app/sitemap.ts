@@ -1,22 +1,17 @@
 import type { MetadataRoute } from "next";
 import { webEnv } from "../lib/env";
 
-const appRoutes = [
-  "",
-  "/dashboard",
-  "/docs",
-  "/api-keys",
-  "/funding",
-  "/analytics",
-  "/operator",
-  "/status"
-] as const;
-
 export default function sitemap(): MetadataRoute.Sitemap {
-  return appRoutes.map((route) => ({
-    url: new URL(route || "/", webEnv.siteUrl).toString(),
-    lastModified: new Date(),
-    changeFrequency: route === "" ? "weekly" : "daily",
-    priority: route === "" ? 1 : route === "/status" ? 0.7 : 0.8
-  }));
+  const base = webEnv.siteUrl;
+  const now = new Date();
+  return [
+    { url: `${base}/`, lastModified: now, changeFrequency: "weekly", priority: 1.0 },
+    { url: `${base}/pricing`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${base}/docs`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/status`, lastModified: now, changeFrequency: "hourly", priority: 0.7 },
+    { url: `${base}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${base}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${base}/cookies`, lastModified: now, changeFrequency: "yearly", priority: 0.2 }
+  ];
 }

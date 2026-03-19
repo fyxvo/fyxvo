@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Notice } from "@fyxvo/ui";
 import { PageHeader } from "../../components/page-header";
 import { InterestCaptureForm } from "../../components/interest-capture-form";
@@ -5,6 +6,22 @@ import { TrackedLinkButton } from "../../components/tracked-link-button";
 import { getStatusSnapshot } from "../../lib/server-status";
 import { formatInteger } from "../../lib/format";
 import { webEnv } from "../../lib/env";
+
+export const metadata: Metadata = {
+  title: "Pricing — Fyxvo",
+  description: "Devnet launch pricing for Fyxvo: SOL-funded standard RPC and priority relay, lamport-per-request rates, and on-chain funding mechanics for early teams.",
+  openGraph: {
+    title: "Pricing — Fyxvo",
+    description: "Devnet launch pricing for Fyxvo: SOL-funded standard RPC and priority relay, lamport-per-request rates, and on-chain funding mechanics for early teams.",
+    images: [{ url: webEnv.socialImageUrl }]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Pricing — Fyxvo",
+    description: "Devnet launch pricing for Fyxvo: SOL-funded standard RPC and priority relay, lamport-per-request rates, and on-chain funding mechanics for early teams.",
+    images: [webEnv.socialImageUrl]
+  }
+};
 
 function lamportsToSol(lamports: number) {
   return (lamports / 1_000_000_000).toFixed(6);

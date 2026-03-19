@@ -42,9 +42,11 @@ import type {
   CreateFeedbackSubmissionInput,
   CreateInterestSubmissionInput,
   CreateApiKeyInput,
+  CreateNotificationInput,
   CreateProjectInput,
   FundingRecordInput,
   IdempotencyLookup,
+  NotificationItem,
   OperatorSummary,
   ProjectAnalytics,
   ProjectWithOwner,
@@ -803,6 +805,23 @@ class MemoryApiRepository implements ApiRepository {
     this.idempotencyRecords.set(key, record);
     return record;
   }
+
+  async createNotification(input: CreateNotificationInput): Promise<NotificationItem> {
+    return {
+      id: randomUUID(),
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      read: false,
+      projectId: input.projectId ?? null,
+      projectName: null,
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  async markNotificationRead(_userId: string, _notificationId: string): Promise<void> {}
+
+  async markAllNotificationsRead(_userId: string): Promise<void> {}
 
   async recordRequestLog(input: RequestLogInput) {
     const requestLog: RequestLog = {

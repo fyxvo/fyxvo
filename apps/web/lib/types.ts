@@ -10,10 +10,13 @@ export interface PortalProject {
   readonly id: string;
   readonly slug: string;
   readonly name: string;
+  readonly displayName: string | null;
   readonly description: string | null;
   readonly chainProjectId: string;
   readonly onChainProjectPda: string;
   readonly ownerId: string;
+  readonly lowBalanceThresholdSol: number | null;
+  readonly dailyRequestAlertThreshold: number | null;
   readonly owner: PortalUser;
   readonly _count?: {
     readonly apiKeys: number;
@@ -477,9 +480,10 @@ export interface OperatorSummary {
 
 export interface Notification {
   readonly id: string;
-  readonly type: "funding_confirmed" | "api_key_created" | "api_key_revoked" | "project_activated" | "error_spike";
+  readonly type: string;
   readonly title: string;
   readonly message: string;
+  readonly read: boolean;
   readonly projectId: string | null;
   readonly projectName: string | null;
   readonly createdAt: string;

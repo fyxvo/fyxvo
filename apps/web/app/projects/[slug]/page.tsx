@@ -14,9 +14,11 @@ import {
   Table,
   type TableColumn,
 } from "@fyxvo/ui";
-import { BarChartCard } from "../../../components/charts";
+import dynamic from "next/dynamic";
+const BarChartCard = dynamic(() => import("../../../components/charts").then((m) => ({ default: m.BarChartCard })), { ssr: false, loading: () => <div className="h-56 animate-pulse rounded-2xl bg-[var(--fyxvo-panel-soft)]" /> });
 import { CopyButton } from "../../../components/copy-button";
 import { GatewayHealthCard } from "../../../components/gateway-health";
+import { SectionErrorBoundary } from "../../../components/section-error-boundary";
 import { OnboardingChecklist } from "../../../components/onboarding-checklist";
 import { PageHeader } from "../../../components/page-header";
 import { AuthGate } from "../../../components/state-panels";
@@ -264,11 +266,13 @@ export default function ProjectPage({
           </CardContent>
         </Card>
 
-        <BarChartCard
-          title="Funding rhythm"
-          description="Reserve changes across the week so project owners can top up before gateway costs start to compete with priority traffic."
-          points={fundingTrend}
-        />
+        <SectionErrorBoundary>
+          <BarChartCard
+            title="Funding rhythm"
+            description="Reserve changes across the week so project owners can top up before gateway costs start to compete with priority traffic."
+            points={fundingTrend}
+          />
+        </SectionErrorBoundary>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">

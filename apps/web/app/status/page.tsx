@@ -18,7 +18,7 @@ import { liveDevnetState } from "../../lib/live-state";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Status",
+  title: "Status — Fyxvo",
   description:
     "Live service readiness for the Fyxvo devnet control plane, gateway, and on-chain protocol accounts.",
   alternates: {

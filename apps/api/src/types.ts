@@ -60,6 +60,18 @@ export interface UpdateProjectInput {
   readonly slug?: string;
   readonly name?: string;
   readonly description?: string | null;
+  readonly displayName?: string | null;
+  readonly lowBalanceThresholdSol?: number | null;
+  readonly dailyRequestAlertThreshold?: number | null;
+}
+
+export interface CreateNotificationInput {
+  readonly userId: string;
+  readonly type: string;
+  readonly title: string;
+  readonly message: string;
+  readonly projectId?: string | null;
+  readonly metadata?: Record<string, unknown> | null;
 }
 
 export interface CreateApiKeyInput {
@@ -215,9 +227,10 @@ export interface AdminStats {
 
 export interface NotificationItem {
   readonly id: string;
-  readonly type: "funding_confirmed" | "api_key_created" | "api_key_revoked" | "project_activated" | "error_spike";
+  readonly type: string;
   readonly title: string;
   readonly message: string;
+  readonly read: boolean;
   readonly projectId: string | null;
   readonly projectName: string | null;
   readonly createdAt: string;
@@ -447,6 +460,9 @@ export interface ApiRepository {
   getAnalyticsOverview(projectIds?: readonly string[]): Promise<AnalyticsOverview>;
   getProjectAnalytics(projectId: string, since?: Date): Promise<ProjectAnalytics>;
   getNotifications(userId: string, projectIds: readonly string[]): Promise<NotificationItem[]>;
+  createNotification(input: CreateNotificationInput): Promise<NotificationItem>;
+  markNotificationRead(userId: string, notificationId: string): Promise<void>;
+  markAllNotificationsRead(userId: string): Promise<void>;
   getApiKeyAnalytics(projectId: string, apiKeyId: string, since: Date): Promise<ApiKeyAnalyticsItem>;
   getMethodBreakdown(projectId: string, since: Date): Promise<MethodBreakdownItem[]>;
   getErrorLog(projectId: string, limit: number): Promise<ErrorLogItem[]>;
