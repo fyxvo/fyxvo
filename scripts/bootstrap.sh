@@ -9,12 +9,46 @@ CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
 SOLANA_BIN_DIR="$HOME/.local/share/solana/install/active_release/bin"
 AVM_BIN_DIR="$HOME/.avm/bin"
-export CARGO_HOME
-export RUSTUP_HOME
-export PATH="$CARGO_HOME/bin:$SOLANA_BIN_DIR:$AVM_BIN_DIR:$PATH"
 
 log() {
   printf "\n[fyxvo] %s\n" "$1"
+}
+
+normalize_tool_home() {
+  local var_name="$1"
+  local fallback_path="$2"
+  local current_path="${!var_name:-$fallback_path}"
+
+  if ! mkdir -p "$current_path" 2>/dev/null; then
+    log "${var_name} is not writable at ${current_path}; falling back to ${fallback_path}"
+    current_path="$fallback_path"
+    mkdir -p "$current_path"
+  fi
+
+  printf -v "$var_name" "%s" "$current_path"
+  export "$var_name"
+}
+
+prepare_user_paths() {
+  normalize_tool_home "CARGO_HOME" "$HOME/.cargo"
+  normalize_tool_home "RUSTUP_HOME" "$HOME/.rustup"
+  mkdir -p "$SOLANA_BIN_DIR" "$AVM_BIN_DIR"
+  export PATH="$CARGO_HOME/bin:$SOLANA_BIN_DIR:$AVM_BIN_DIR:$PATH"
+}
+
+load_node_toolchain() {
+  local nvm_dir="${NVM_DIR:-/usr/local/share/nvm}"
+
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    return
+  fi
+
+  if [[ -s "$nvm_dir/nvm.sh" ]]; then
+    log "Loading Node.js from ${nvm_dir}"
+    # shellcheck source=/dev/null
+    source "$nvm_dir/nvm.sh"
+    nvm use default >/dev/null 2>&1 || nvm use --lts >/dev/null 2>&1 || true
+  fi
 }
 
 install_system_packages() {
@@ -105,10 +139,17 @@ install_anchor() {
 install_workspace_dependencies() {
   log "Installing pnpm workspace dependencies"
   cd "$ROOT_DIR"
-  pnpm install
+
+  if [[ -f pnpm-lock.yaml ]]; then
+    pnpm install --frozen-lockfile
+  else
+    pnpm install
+  fi
 }
 
 main() {
+  prepare_user_paths
+  load_node_toolchain
   install_system_packages
   install_pnpm
   install_rust

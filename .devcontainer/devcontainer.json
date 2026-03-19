@@ -1,17 +1,19 @@
 {
   "name": "Fyxvo",
   "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  "remoteUser": "vscode",
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
       "version": "lts"
     }
   },
   "remoteEnv": {
-    "CARGO_HOME": "/home/codespace/.cargo",
-    "RUSTUP_HOME": "/home/codespace/.rustup",
-    "PATH": "${containerEnv:PATH}:/home/codespace/.cargo/bin:/home/codespace/.local/share/solana/install/active_release/bin:/home/codespace/.avm/bin"
+    "NVM_DIR": "/usr/local/share/nvm",
+    "CARGO_HOME": "/home/vscode/.cargo",
+    "RUSTUP_HOME": "/home/vscode/.rustup",
+    "PATH": "${containerEnv:PATH}:/home/vscode/.cargo/bin:/home/vscode/.local/share/solana/install/active_release/bin:/home/vscode/.avm/bin"
   },
-  "postCreateCommand": "bash ./scripts/bootstrap.sh",
+  "postCreateCommand": "bash ./.devcontainer/post-create.sh",
   "waitFor": "postCreateCommand",
   "forwardPorts": [3000, 4000, 4100, 5432, 6379],
   "portsAttributes": {
