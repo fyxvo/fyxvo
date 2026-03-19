@@ -64,6 +64,7 @@ install_system_packages() {
     clang \
     curl \
     git \
+    git-lfs \
     jq \
     libclang-dev \
     libssl-dev \
