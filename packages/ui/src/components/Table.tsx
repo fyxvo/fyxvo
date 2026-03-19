@@ -21,19 +21,24 @@ export function Table<Row>({
   rows,
   getRowKey,
   emptyState = "No records available.",
-  className
+  className,
 }: TableProps<Row>) {
   return (
-    <div className={cn("overflow-hidden rounded-3xl border border-slate-800 bg-slate-950/70", className)}>
+    <div
+      className={cn(
+        "overflow-hidden rounded-3xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel)]",
+        className
+      )}
+    >
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
-          <thead className="bg-slate-900/80">
+        <table className="min-w-full divide-y divide-[var(--fyxvo-border)] text-left text-sm">
+          <thead className="bg-[var(--fyxvo-panel-soft)]">
             <tr>
               {columns.map((column) => (
                 <th
                   key={column.key}
                   className={cn(
-                    "px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400",
+                    "px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]",
                     column.className
                   )}
                   scope="col"
@@ -43,12 +48,18 @@ export function Table<Row>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-900 text-slate-200">
+          <tbody className="divide-y divide-[var(--fyxvo-border)] text-[var(--fyxvo-text-soft)]">
             {rows.length > 0 ? (
               rows.map((row) => (
-                <tr key={getRowKey(row)} className="hover:bg-slate-900/60">
+                <tr
+                  key={getRowKey(row)}
+                  className="hover:bg-[var(--fyxvo-panel-soft)] transition-colors"
+                >
                   {columns.map((column) => (
-                    <td key={column.key} className={cn("px-4 py-4 align-middle", column.className)}>
+                    <td
+                      key={column.key}
+                      className={cn("px-4 py-4 align-middle", column.className)}
+                    >
                       {column.cell(row)}
                     </td>
                   ))}
@@ -56,7 +67,10 @@ export function Table<Row>({
               ))
             ) : (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-500" colSpan={columns.length}>
+                <td
+                  className="px-4 py-8 text-center text-[var(--fyxvo-text-muted)]"
+                  colSpan={columns.length}
+                >
                   {emptyState}
                 </td>
               </tr>

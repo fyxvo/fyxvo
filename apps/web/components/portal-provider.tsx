@@ -78,6 +78,7 @@ interface PortalContextValue {
     readonly name: string;
     readonly readyState: string;
     readonly installed: boolean;
+    readonly icon: string;
   }[];
   readonly user: PortalUser | null;
   readonly token: string | null;
@@ -213,7 +214,8 @@ export function PortalProvider({ children }: PropsWithChildren) {
     readyState: String(item.readyState),
     installed:
       String(item.readyState) === "Installed" ||
-      String(item.readyState) === "Loadable"
+      String(item.readyState) === "Loadable",
+    icon: item.adapter.icon
   }));
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null;

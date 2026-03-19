@@ -9,13 +9,12 @@ function walletTone(readyState: string) {
   if (readyState === "Installed" || readyState === "Loadable") {
     return "success" as const;
   }
-
   return "neutral" as const;
 }
 
 export function WalletConnectButton({
   className,
-  compact = false
+  compact = false,
 }: {
   readonly className?: string;
   readonly compact?: boolean;
@@ -32,10 +31,12 @@ export function WalletConnectButton({
           setOpen(true);
           void trackLaunchEvent({
             name: "wallet_connect_intent",
-            source: compact ? "header-compact" : "header-primary"
+            source: compact ? "header-compact" : "header-primary",
           });
         }}
-        loading={portal.walletPhase === "connecting" || portal.walletPhase === "authenticating"}
+        loading={
+          portal.walletPhase === "connecting" || portal.walletPhase === "authenticating"
+        }
       >
         {compact ? "Connect" : "Connect wallet"}
       </Button>
@@ -43,13 +44,14 @@ export function WalletConnectButton({
         open={open}
         onClose={() => setOpen(false)}
         title="Connect a Solana wallet"
-        description="Phantom, Solflare, Backpack, and Wallet Standard compatible wallets can all authenticate the same Fyxvo session."
+        description="Choose a wallet to authenticate your Fyxvo session. Phantom, Solflare, Backpack, Coinbase Wallet, Trust Wallet, and Wallet Standard compatible wallets are supported."
       >
-        <div className="space-y-3">
+        <div className="space-y-2">
           {portal.walletOptions.map((wallet) => (
             <button
               key={wallet.name}
               type="button"
+              disabled={connectingWallet !== null}
               onClick={async () => {
                 setConnectingWallet(wallet.name);
                 try {
@@ -59,25 +61,41 @@ export function WalletConnectButton({
                   setConnectingWallet(null);
                 }
               }}
-              className="flex w-full items-center justify-between rounded-[1.6rem] border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-4 text-left transition hover:border-brand-500/40 hover:bg-[var(--fyxvo-panel)]"
+              className="flex w-full items-center gap-4 rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3 text-left transition hover:border-brand-500/40 hover:bg-[var(--fyxvo-panel)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <div>
-                <div className="text-base font-medium text-[var(--fyxvo-text)]">{wallet.name}</div>
-                <div className="mt-1 text-sm text-[var(--fyxvo-text-muted)]">
+              {wallet.icon ? (
+                <img
+                  src={wallet.icon}
+                  alt={`${wallet.name} logo`}
+                  className="h-9 w-9 shrink-0 rounded-xl object-contain"
+                  aria-hidden="true"
+                />
+              ) : (
+                <div className="h-9 w-9 shrink-0 rounded-xl bg-[var(--fyxvo-panel)] ring-1 ring-[var(--fyxvo-border)]" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-[var(--fyxvo-text)]">
+                  {wallet.name}
+                </div>
+                <div className="mt-0.5 text-xs text-[var(--fyxvo-text-muted)]">
                   {wallet.installed
                     ? "Ready in this browser"
-                    : "Use a compatible extension or Wallet Standard provider"}
+                    : "Not detected — install the extension to connect"}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex shrink-0 items-center gap-2">
                 <Badge tone={walletTone(wallet.readyState)}>{wallet.readyState}</Badge>
                 {connectingWallet === wallet.name ? (
-                  <span className="text-sm text-[var(--fyxvo-text-muted)]">Connecting…</span>
+                  <span className="text-xs text-[var(--fyxvo-text-muted)]">Connecting…</span>
                 ) : null}
               </div>
             </button>
           ))}
         </div>
+        <p className="mt-4 text-xs text-[var(--fyxvo-text-muted)]">
+          Wallet Standard compatible wallets are detected automatically. Fyxvo never stores private
+          keys.
+        </p>
       </Modal>
     </>
   );

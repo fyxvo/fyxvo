@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { AppFrame } from "../components/app-frame";
+import { CookieNotice } from "../components/cookie-notice";
 import { PortalProvider } from "../components/portal-provider";
 import { SolanaProvider } from "../components/solana-provider";
 import { ThemeProvider } from "../components/theme-provider";
@@ -81,6 +82,7 @@ export default function RootLayout({
           <SolanaProvider>
             <PortalProvider>
               <AppFrame>{children}</AppFrame>
+              <CookieNotice />
             </PortalProvider>
           </SolanaProvider>
         </ThemeProvider>

@@ -418,6 +418,53 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
     }
   }
 
+  app.get("/", async () => ({
+    service: "Fyxvo Gateway",
+    version: "0.1.0",
+    status: "ok",
+    description: "Solana JSON-RPC relay for funded devnet projects.",
+    usage: "Send POST requests with content-type: application/json and x-api-key header.",
+    endpoints: {
+      standard: "POST /rpc — requires rpc:request scope",
+      priority: "POST /priority — requires rpc:request and priority:relay scopes"
+    },
+    docs: "https://www.fyxvo.com/docs",
+    health: "/health",
+    status_url: "/v1/status"
+  }));
+
+  app.get("/rpc", async () => ({
+    service: "Fyxvo Gateway — Standard RPC",
+    version: "0.1.0",
+    usage: "This endpoint only accepts POST requests.",
+    note: "Provide content-type: application/json and x-api-key in your request headers.",
+    example: {
+      method: "POST /rpc",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": "YOUR_API_KEY"
+      },
+      body: { jsonrpc: "2.0", id: 1, method: "getHealth" }
+    },
+    docs: "https://www.fyxvo.com/docs"
+  }));
+
+  app.get("/priority", async () => ({
+    service: "Fyxvo Gateway — Priority Relay",
+    version: "0.1.0",
+    usage: "This endpoint only accepts POST requests.",
+    note: "Requires rpc:request and priority:relay scopes. Provide content-type: application/json and x-api-key headers.",
+    example: {
+      method: "POST /priority",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": "YOUR_PRIORITY_API_KEY"
+      },
+      body: { jsonrpc: "2.0", id: 1, method: "getSlot" }
+    },
+    docs: "https://www.fyxvo.com/docs"
+  }));
+
   app.get("/health", async (_request, reply) => {
     const [database, redis, upstreamNodes, metrics] = await Promise.all([
       input.repository.ping().catch(() => false),

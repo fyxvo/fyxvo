@@ -17,6 +17,7 @@ import {
   BookIcon,
   PulseIcon,
   MenuIcon,
+  SettingsIcon,
 } from "./icons";
 import { usePortal } from "./portal-provider";
 import { shortenAddress } from "../lib/format";
@@ -30,10 +31,12 @@ const navItems = [
   { href: "/operators", label: "Operators", icon: ServerIcon },
   { href: "/docs", label: "Docs", icon: BookIcon },
   { href: "/status", label: "Status", icon: PulseIcon },
+  { href: "/settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === "/projects") return pathname.startsWith("/projects");
+  if (href === "/operators") return pathname === "/operators";
   return pathname === href;
 }
 

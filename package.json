@@ -29,6 +29,15 @@
     "solana:operator:seed:managed": "pnpm exec tsx scripts/solana/seed-managed-operator.ts",
     "solana:flow:devnet-live": "pnpm exec tsx scripts/solana/run-live-sol-flow.ts"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@stellar/stellar-sdk",
+      "blake-hash",
+      "protobufjs",
+      "tiny-secp256k1",
+      "usb"
+    ]
+  },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.32.1",
     "@eslint/js": "^9.39.1",

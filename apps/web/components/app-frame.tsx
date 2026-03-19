@@ -5,7 +5,17 @@ import { SiteHeader } from "./site-header";
 import { SiteFooter } from "./site-footer";
 import { DashShell } from "./dash-shell";
 
-const MARKETING_PATHS = new Set(["/", "/pricing", "/docs", "/status", "/contact", "/operators"]);
+const MARKETING_PATHS = new Set([
+  "/",
+  "/pricing",
+  "/docs",
+  "/status",
+  "/contact",
+  "/operators",
+  "/privacy",
+  "/terms",
+  "/cookies",
+]);
 
 function isMarketingRoute(pathname: string) {
   return MARKETING_PATHS.has(pathname);

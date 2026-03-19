@@ -19,11 +19,17 @@ const infraLinks = [
   { href: "/operators", label: "Operators" },
 ];
 
+const legalLinks = [
+  { href: "/privacy", label: "Privacy Policy" },
+  { href: "/terms", label: "Terms of Service" },
+  { href: "/cookies", label: "Cookie Policy" },
+];
+
 export function SiteFooter() {
   return (
     <footer className="border-t border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)]">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[2fr_1fr_1fr]">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr]">
           <div className="space-y-4">
             <BrandLogo />
             <p className="max-w-sm text-sm leading-6 text-[var(--fyxvo-text-muted)]">
@@ -72,6 +78,23 @@ export function SiteFooter() {
             </div>
             <div className="pt-2">
               <SocialLinks />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+              Legal
+            </p>
+            <div className="space-y-2">
+              {legalLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="block text-sm text-[var(--fyxvo-text-muted)] transition-colors hover:text-[var(--fyxvo-text)]"
+                >
+                  {link.label}
+                </Link>
+              ))}
             </div>
           </div>
         </div>

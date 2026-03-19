@@ -629,6 +629,17 @@ export async function buildApiApp(input: {
     }
   });
 
+  app.get("/", async () => ({
+    service: "Fyxvo API",
+    version: "0.1.0",
+    status: "ok",
+    description: "Wallet-authenticated control plane for Fyxvo devnet infrastructure.",
+    network: "solana-devnet",
+    docs: "https://www.fyxvo.com/docs",
+    health: "/health",
+    status_url: "/v1/status"
+  }));
+
   app.get("/health", async () => {
     const [database, readiness] = await Promise.all([
       (input.healthcheck ?? (() => Promise.resolve(true)))(),

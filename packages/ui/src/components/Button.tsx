@@ -6,10 +6,13 @@ type ButtonSize = "sm" | "md" | "lg";
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand-500 text-slate-950 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_14px_30px_rgba(28,224,183,0.25)] hover:bg-brand-400",
-  secondary: "bg-slate-900/80 text-slate-100 ring-1 ring-inset ring-slate-800 hover:bg-slate-800",
-  ghost: "bg-transparent text-slate-300 hover:bg-slate-900/70 hover:text-white",
-  danger: "bg-rose-500/90 text-white shadow-[0_14px_30px_rgba(244,63,94,0.25)] hover:bg-rose-400",
+    "bg-brand-500 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_14px_30px_rgba(249,115,22,0.25)] hover:bg-brand-400",
+  secondary:
+    "bg-[var(--fyxvo-panel-soft)] text-[var(--fyxvo-text)] ring-1 ring-inset ring-[var(--fyxvo-border)] hover:bg-[var(--fyxvo-panel)]",
+  ghost:
+    "bg-transparent text-[var(--fyxvo-text-muted)] hover:bg-[var(--fyxvo-panel-soft)] hover:text-[var(--fyxvo-text)]",
+  danger:
+    "bg-rose-500/90 text-white shadow-[0_14px_30px_rgba(244,63,94,0.25)] hover:bg-rose-400",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -40,7 +43,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    "inline-flex items-center justify-center gap-2 rounded-2xl text-center font-semibold leading-tight whitespace-normal transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-60",
+    "inline-flex items-center justify-center gap-2 rounded-2xl text-center font-semibold leading-tight whitespace-normal transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--fyxvo-bg)] disabled:cursor-not-allowed disabled:opacity-60",
     variantClasses[variant],
     sizeClasses[size],
     className

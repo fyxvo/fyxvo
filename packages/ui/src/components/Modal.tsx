@@ -43,12 +43,14 @@ export function Modal({ open, onClose, title, description, children, footer }: M
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-md"
       onClick={onClose}
       role="presentation"
     >
       <Card
-        className={cn("w-full max-w-2xl border-slate-800 bg-slate-950")}
+        className={cn(
+          "w-full max-w-2xl max-h-[90vh] overflow-y-auto border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg-elevated)]"
+        )}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
