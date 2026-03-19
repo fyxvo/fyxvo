@@ -1,0 +1,37 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build output
+dist
+coverage
+.turbo
+.next
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor and OS files
+.DS_Store
+.vscode
+
+# Rust and Solana
+target
+programs/**/target
+.anchor
+
+# Local databases and caches
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.vercel

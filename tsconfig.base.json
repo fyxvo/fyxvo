@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "isolatedModules": true,
+    "useDefineForClassFields": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "baseUrl": ".",
+    "paths": {
+      "@fyxvo/config": ["packages/config/src/index.ts"],
+      "@fyxvo/database": ["packages/database/src/index.ts"],
+      "@fyxvo/sdk": ["packages/sdk/src/index.ts"],
+      "@fyxvo/ui": ["packages/ui/src/index.tsx"]
+    }
+  }
+}

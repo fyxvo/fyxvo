@@ -1,0 +1,387 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum NodeOperatorStatus {
+  ACTIVE
+  ONBOARDING
+  SUSPENDED
+}
+
+enum NodeStatus {
+  PROVISIONING
+  ONLINE
+  DEGRADED
+  OFFLINE
+  DECOMMISSIONED
+}
+
+enum NodeNetwork {
+  DEVNET
+  TESTNET
+  MAINNET
+}
+
+enum InterestSubmissionStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  ARCHIVED
+}
+
+enum FeedbackCategory {
+  BUG_REPORT
+  SUPPORT_REQUEST
+  ONBOARDING_FRICTION
+  PRODUCT_FEEDBACK
+}
+
+enum FeedbackSubmissionStatus {
+  NEW
+  REVIEWING
+  FOLLOW_UP
+  CLOSED
+}
+
+model User {
+  id                 String              @id @default(uuid()) @db.Uuid
+  walletAddress      String              @unique
+  authNonce          String              @default(uuid())
+  sessionVersion     Int                 @default(1)
+  email              String?             @unique
+  displayName        String
+  role               UserRole            @default(MEMBER)
+  status             UserStatus          @default(INVITED)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  projects           Project[]
+  apiKeys            ApiKey[]
+  requestLogs        RequestLog[]
+  fundingCoordinated FundingCoordinate[]
+}
+
+model InterestSubmission {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  name                  String
+  email                 String
+  role                  String
+  team                  String?
+  useCase               String
+  expectedRequestVolume String
+  interestAreas         Json
+  operatorInterest      Boolean                  @default(false)
+  source                String                   @default("web")
+  status                InterestSubmissionStatus @default(NEW)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  @@index([email, createdAt])
+  @@index([status, createdAt])
+}
+
+model FeedbackSubmission {
+  id            String                   @id @default(uuid()) @db.Uuid
+  name          String
+  email         String
+  role          String?
+  team          String?
+  walletAddress String?
+  projectId     String?                  @db.Uuid
+  category      FeedbackCategory
+  message       String
+  source        String                   @default("web")
+  page          String?
+  status        FeedbackSubmissionStatus @default(NEW)
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  project       Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([email, createdAt])
+  @@index([status, createdAt])
+  @@index([category, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model Project {
+  id                String              @id @default(uuid()) @db.Uuid
+  slug              String              @unique
+  name              String
+  description       String?
+  chainProjectId    BigInt              @unique
+  onChainProjectPda String              @unique
+  ownerId           String              @db.Uuid
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  owner             User                @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  apiKeys           ApiKey[]
+  requestLogs       RequestLog[]
+  nodes             Node[]
+  fundingRequests   FundingCoordinate[]
+  usageRollups      ProjectUsageRollup[]
+  walletActivities  WalletActivity[]
+  rewardSnapshots   OperatorRewardSnapshot[]
+  feedbackSubmissions FeedbackSubmission[]
+
+  @@index([ownerId])
+}
+
+model ApiKey {
+  id          String       @id @default(uuid()) @db.Uuid
+  projectId   String       @db.Uuid
+  createdById String       @db.Uuid
+  label       String
+  prefix      String       @unique
+  keyHash     String       @unique
+  status      ApiKeyStatus @default(ACTIVE)
+  scopes      Json
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  requestLogs RequestLog[]
+
+  @@index([projectId])
+  @@index([createdById])
+}
+
+model RequestLog {
+  id             String    @id @default(uuid()) @db.Uuid
+  requestId      String?   @unique
+  idempotencyKey String?
+  projectId      String?   @db.Uuid
+  apiKeyId       String?   @db.Uuid
+  userId         String?   @db.Uuid
+  service        String
+  route          String
+  method         String
+  statusCode     Int
+  durationMs     Int
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime  @default(now())
+  project        Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  apiKey         ApiKey?   @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([apiKeyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([service, route, createdAt])
+  @@index([idempotencyKey])
+}
+
+model NodeOperator {
+  id               String                   @id @default(uuid()) @db.Uuid
+  name             String
+  email            String                   @unique
+  walletAddress    String                   @unique
+  status           NodeOperatorStatus       @default(ONBOARDING)
+  reputationScore  Float                    @default(1)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  nodes            Node[]
+  rewardSnapshots  OperatorRewardSnapshot[]
+}
+
+model Node {
+  id               String            @id @default(uuid()) @db.Uuid
+  operatorId       String            @db.Uuid
+  projectId        String?           @db.Uuid
+  name             String
+  network          NodeNetwork       @default(DEVNET)
+  endpoint         String            @unique
+  region           String
+  status           NodeStatus        @default(PROVISIONING)
+  reliabilityScore Float             @default(1)
+  lastHeartbeatAt  DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  operator         NodeOperator      @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  project          Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  metrics          Metrics[]
+  healthChecks     NodeHealthCheck[]
+
+  @@index([operatorId])
+  @@index([projectId])
+  @@index([network, status])
+}
+
+model Metrics {
+  id           String   @id @default(uuid()) @db.Uuid
+  nodeId       String   @db.Uuid
+  cpuUsage     Float
+  memoryUsage  Float
+  diskUsage    Float
+  requestCount Int
+  errorRate    Float
+  recordedAt   DateTime @default(now())
+  node         Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([nodeId, recordedAt])
+}
+
+model FundingCoordinate {
+  id                  String   @id @default(uuid()) @db.Uuid
+  projectId           String   @db.Uuid
+  requestedById       String   @db.Uuid
+  asset               String
+  amount              BigInt
+  recentBlockhash     String
+  transactionBase64   String
+  idempotencyKey      String   @unique
+  transactionSignature String?  @unique
+  confirmedAt         DateTime?
+  createdAt           DateTime @default(now())
+  expiresAt           DateTime
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestedBy         User     @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([requestedById, createdAt])
+}
+
+model IdempotencyRecord {
+  id           String   @id @default(uuid()) @db.Uuid
+  key          String
+  route        String
+  method       String
+  actorKey     String
+  requestHash  String
+  statusCode   Int
+  responseBody Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  expiresAt    DateTime
+
+  @@unique([key, method, route, actorKey])
+  @@index([expiresAt])
+}
+
+model WorkerCursor {
+  key         String   @id
+  cursorValue Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ProjectUsageRollup {
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String?  @db.Uuid
+  service         String
+  windowStart     DateTime
+  windowEnd       DateTime
+  requestCount    Int
+  successCount    Int
+  errorCount      Int
+  totalDurationMs Int
+  averageLatencyMs Int
+  lastRequestAt   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, service, windowStart, windowEnd])
+  @@index([service, windowStart])
+}
+
+model WalletActivity {
+  id             String    @id @default(uuid()) @db.Uuid
+  walletAddress  String
+  signature      String
+  activityType   String
+  slot           BigInt
+  blockTime      DateTime?
+  success        Boolean
+  projectId      String?   @db.Uuid
+  source         String
+  raw            Json
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([walletAddress, signature])
+  @@index([walletAddress, blockTime])
+  @@index([projectId, blockTime])
+}
+
+model WalletTokenBalance {
+  id            String   @id @default(uuid()) @db.Uuid
+  walletAddress String
+  mintAddress   String
+  amount        String
+  decimals      Int
+  projectId     String?  @db.Uuid
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+
+  @@unique([walletAddress, mintAddress])
+  @@index([projectId, walletAddress])
+}
+
+model TransactionLookup {
+  id         String   @id @default(uuid()) @db.Uuid
+  signature  String   @unique
+  slot       BigInt
+  status     String
+  blockTime  DateTime?
+  raw        Json
+  fetchedAt  DateTime @default(now())
+}
+
+model NodeHealthCheck {
+  id           String   @id @default(uuid()) @db.Uuid
+  nodeId        String   @db.Uuid
+  isHealthy     Boolean
+  latencyMs     Int
+  responseSlot  BigInt?
+  errorMessage  String?
+  checkedAt     DateTime @default(now())
+  node          Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([nodeId, checkedAt])
+}
+
+model OperatorRewardSnapshot {
+  id               String       @id @default(uuid()) @db.Uuid
+  operatorId       String       @db.Uuid
+  projectId        String       @db.Uuid
+  requestCount     Int
+  uptimeRatio      Float
+  reputationScore  Float
+  rewardLamports   BigInt
+  windowStart      DateTime
+  windowEnd        DateTime
+  createdAt        DateTime     @default(now())
+  operator         NodeOperator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([operatorId, projectId, windowStart, windowEnd])
+  @@index([projectId, windowEnd])
+}

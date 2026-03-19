@@ -1,0 +1,17 @@
+.git
+.github
+.devcontainer
+.vscode
+.DS_Store
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+coverage
+.anchor
+target
+tests
+programs
+logo.png
+logo.svg

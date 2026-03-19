@@ -1,0 +1,48 @@
+{
+  "name": "Fyxvo",
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+  "remoteEnv": {
+    "CARGO_HOME": "/home/codespace/.cargo",
+    "RUSTUP_HOME": "/home/codespace/.rustup",
+    "PATH": "${containerEnv:PATH}:/home/codespace/.cargo/bin:/home/codespace/.local/share/solana/install/active_release/bin:/home/codespace/.avm/bin"
+  },
+  "postCreateCommand": "bash ./scripts/bootstrap.sh",
+  "waitFor": "postCreateCommand",
+  "forwardPorts": [3000, 4000, 4100, 5432, 6379],
+  "portsAttributes": {
+    "3000": {
+      "label": "web",
+      "onAutoForward": "openBrowser"
+    },
+    "4000": {
+      "label": "api",
+      "onAutoForward": "notify"
+    },
+    "4100": {
+      "label": "gateway",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true,
+        "eslint.useFlatConfig": true,
+        "files.insertFinalNewline": true,
+        "typescript.tsdk": "node_modules/typescript/lib"
+      },
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "vadimcn.vscode-lldb"
+      ]
+    }
+  }
+}

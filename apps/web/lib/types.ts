@@ -1,0 +1,486 @@
+export interface PortalUser {
+  readonly id: string;
+  readonly walletAddress: string;
+  readonly displayName: string;
+  readonly role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+  readonly status: "ACTIVE" | "INVITED" | "DISABLED";
+}
+
+export interface PortalProject {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly chainProjectId: string;
+  readonly onChainProjectPda: string;
+  readonly ownerId: string;
+  readonly owner: PortalUser;
+  readonly _count?: {
+    readonly apiKeys: number;
+    readonly requestLogs: number;
+    readonly fundingRequests: number;
+  };
+}
+
+export interface ProjectActivationPreparation {
+  readonly projectPda: string;
+  readonly protocolConfigPda: string;
+  readonly treasuryPda: string;
+  readonly recentBlockhash: string;
+  readonly transactionBase64: string;
+  readonly lastValidBlockHeight: number;
+}
+
+export interface ProjectActivationVerification {
+  readonly signature: string;
+  readonly confirmedAt: string;
+  readonly explorerUrl: string;
+  readonly onchain: OnChainProjectSnapshot;
+}
+
+export interface PortalApiKey {
+  readonly id: string;
+  readonly projectId: string;
+  readonly createdById: string;
+  readonly label: string;
+  readonly prefix: string;
+  readonly status: string;
+  readonly scopes: readonly string[];
+  readonly lastUsedAt: string | null;
+  readonly expiresAt: string | null;
+  readonly revokedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface InterestSubmissionReceipt {
+  readonly id: string;
+  readonly status: string;
+  readonly createdAt: string;
+  readonly email: string;
+}
+
+export interface InterestSubmissionInput {
+  readonly name: string;
+  readonly email: string;
+  readonly role: string;
+  readonly team?: string;
+  readonly useCase: string;
+  readonly expectedRequestVolume: string;
+  readonly interestAreas: readonly string[];
+  readonly operatorInterest: boolean;
+  readonly source: string;
+}
+
+export interface FeedbackSubmissionReceipt {
+  readonly id: string;
+  readonly status: string;
+  readonly createdAt: string;
+  readonly email: string;
+}
+
+export interface FeedbackSubmissionInput {
+  readonly name: string;
+  readonly email: string;
+  readonly role?: string;
+  readonly team?: string;
+  readonly walletAddress?: string;
+  readonly projectId?: string;
+  readonly category: "BUG_REPORT" | "SUPPORT_REQUEST" | "ONBOARDING_FRICTION" | "PRODUCT_FEEDBACK";
+  readonly message: string;
+  readonly source: string;
+  readonly page?: string;
+}
+
+export type LaunchEventName =
+  | "landing_cta_clicked"
+  | "wallet_connect_intent"
+  | "project_creation_started"
+  | "funding_flow_started"
+  | "api_key_created"
+  | "interest_form_submitted";
+
+export interface PortalHealth {
+  readonly status: string;
+  readonly service: string;
+  readonly timestamp: string;
+  readonly database?: boolean;
+  readonly chain?: boolean;
+  readonly protocolReady?: boolean;
+}
+
+export interface PortalProtocolReadiness {
+  readonly ready: boolean;
+  readonly cluster: "devnet";
+  readonly programId: string;
+  readonly expectedProgramId: string;
+  readonly expectedAdminAuthority: string;
+  readonly expectedUsdcMint: string;
+  readonly addresses: {
+    readonly programId: string;
+    readonly protocolConfig: string;
+    readonly treasury: string;
+    readonly operatorRegistry: string;
+    readonly treasuryUsdcVault: string;
+  };
+  readonly checks: {
+    readonly programDeployed: boolean;
+    readonly programExecutable: boolean;
+    readonly protocolConfigExists: boolean;
+    readonly treasuryExists: boolean;
+    readonly operatorRegistryExists: boolean;
+    readonly treasuryUsdcVaultExists: boolean;
+    readonly adminAuthorityMatches: boolean;
+    readonly usdcMintMatches: boolean;
+    readonly treasuryMatches: boolean;
+    readonly treasuryUsdcVaultMatches: boolean;
+    readonly operatorRegistryMatches: boolean;
+  };
+  readonly acceptedAssets: {
+    readonly sol: true;
+    readonly usdcConfigured: boolean;
+  };
+  readonly reasons: string[];
+}
+
+export interface PortalServiceStatus {
+  readonly service: string;
+  readonly environment?: string;
+  readonly solanaCluster?: string;
+  readonly adminAuthority?: string;
+  readonly authorityPlan?: {
+    readonly mode?: "single-signer" | "multisig" | "governed";
+    readonly protocolAuthority?: string;
+    readonly pauseAuthority?: string;
+    readonly upgradeAuthorityHint?: string | null;
+    readonly warnings?: readonly string[];
+  };
+  readonly programId?: string;
+  readonly nodeCount?: number;
+  readonly pricing?: {
+    readonly standard?: number;
+    readonly priority?: number;
+    readonly writeMultiplier?: number;
+  };
+  readonly scopeEnforcement?: {
+    readonly enabled?: boolean;
+    readonly standardRequiredScopes?: readonly string[];
+    readonly priorityRequiredScopes?: readonly string[];
+  };
+  readonly metrics?: {
+    readonly totals?: {
+      readonly requests?: number;
+      readonly successes?: number;
+      readonly errors?: number;
+      readonly upstreamFailures?: number;
+    };
+    readonly standard?: {
+      readonly averageLatencyMs?: number;
+      readonly successRate?: number;
+      readonly requests?: number;
+      readonly errors?: number;
+    };
+    readonly priority?: {
+      readonly averageLatencyMs?: number;
+      readonly successRate?: number;
+      readonly requests?: number;
+      readonly errors?: number;
+    };
+  };
+  readonly dependencies?: {
+    readonly databaseConfigured?: boolean;
+    readonly redisConfigured?: boolean;
+  };
+  readonly acceptedAssets?: {
+    readonly sol?: boolean;
+    readonly usdcEnabled?: boolean;
+    readonly usdcMintAddress?: string;
+  };
+  readonly protocolReadiness?: PortalProtocolReadiness | null;
+  readonly upstreamReachable?: boolean;
+  readonly upstream?: string;
+  readonly error?: string;
+}
+
+export interface AnalyticsOverview {
+  readonly totals: {
+    readonly projects: number;
+    readonly apiKeys: number;
+    readonly fundingRequests: number;
+    readonly requestLogs: number;
+  };
+  readonly latency: {
+    readonly averageMs: number;
+    readonly maxMs: number;
+  };
+  readonly requestsByService: Array<{
+    readonly service: string;
+    readonly count: number;
+  }>;
+}
+
+export interface ProjectAnalytics {
+  readonly project: PortalProject;
+  readonly totals: {
+    readonly requestLogs: number;
+    readonly apiKeys: number;
+    readonly fundingRequests: number;
+  };
+  readonly latency: {
+    readonly averageMs: number;
+    readonly maxMs: number;
+  };
+  readonly statusCodes: Array<{
+    readonly statusCode: number;
+    readonly count: number;
+  }>;
+  readonly recentRequests: Array<{
+    readonly id: string;
+    readonly route: string;
+    readonly method: string;
+    readonly statusCode: number;
+    readonly durationMs: number;
+    readonly createdAt: string;
+    readonly service: string;
+  }>;
+}
+
+export interface OnChainProjectSnapshot {
+  readonly projectPda: string;
+  readonly treasuryPda: string;
+  readonly treasurySolBalance: number;
+  readonly projectAccountExists: boolean;
+  readonly projectAccountDataLength: number;
+  readonly balances?: {
+    readonly totalSolFunded: string;
+    readonly totalUsdcFunded: string;
+    readonly availableSolCredits: string;
+    readonly availableUsdcCredits: string;
+    readonly outstandingSolRewards: string;
+    readonly outstandingUsdcRewards: string;
+    readonly totalSolRewardsAccrued: string;
+    readonly totalUsdcRewardsAccrued: string;
+  };
+  readonly treasuryUsdcVault?: {
+    readonly address: string;
+    readonly amount: string;
+  };
+}
+
+export interface FundingPreparation {
+  readonly fundingRequestId: string;
+  readonly projectPda: string;
+  readonly protocolConfigPda: string;
+  readonly treasuryPda: string;
+  readonly treasuryUsdcVault?: string;
+  readonly recentBlockhash: string;
+  readonly transactionBase64: string;
+  readonly lastValidBlockHeight: number;
+  readonly amount: string;
+  readonly asset: "SOL" | "USDC";
+}
+
+export interface FundingVerification {
+  readonly fundingRequestId: string;
+  readonly signature: string;
+  readonly confirmedAt: string;
+  readonly explorerUrl: string;
+  readonly onchain: OnChainProjectSnapshot;
+}
+
+export interface AdminStats {
+  readonly totals: {
+    readonly users: number;
+    readonly projects: number;
+    readonly apiKeys: number;
+    readonly nodes: number;
+    readonly nodeOperators: number;
+    readonly fundingRequests: number;
+    readonly requestLogs: number;
+  };
+}
+
+export interface AdminOverview {
+  readonly protocol: {
+    readonly readiness: PortalProtocolReadiness | null;
+    readonly authorityPlan: {
+      readonly mode: "single-signer" | "multisig" | "governed";
+      readonly protocolAuthority: string;
+      readonly pauseAuthority: string;
+      readonly upgradeAuthorityHint: string | null;
+      readonly warnings: readonly string[];
+    };
+    readonly treasury: {
+      readonly solBalance: string | null;
+      readonly usdcBalance: string | null;
+      readonly reservedSolRewards: string | null;
+      readonly reservedUsdcRewards: string | null;
+      readonly protocolSolFeesOwed: string | null;
+      readonly protocolUsdcFeesOwed: string | null;
+      readonly feeWithdrawalReady: boolean;
+      readonly reconciliationWarnings: readonly string[];
+    };
+  };
+  readonly worker: {
+    readonly status: "healthy" | "attention" | "idle";
+    readonly lastCursorAt: string | null;
+    readonly lastCursorKey: string | null;
+    readonly lastRollupAt: string | null;
+    readonly staleThresholdMinutes: number;
+  };
+  readonly recentErrors: Array<{
+    readonly id: string;
+    readonly service: string;
+    readonly route: string;
+    readonly method: string;
+    readonly statusCode: number;
+    readonly durationMs: number;
+    readonly createdAt: string;
+    readonly project: {
+      readonly id: string;
+      readonly name: string;
+      readonly slug: string;
+    } | null;
+  }>;
+  readonly recentFundingEvents: Array<{
+    readonly id: string;
+    readonly asset: string;
+    readonly amount: string;
+    readonly createdAt: string;
+    readonly confirmedAt: string | null;
+    readonly transactionSignature: string | null;
+    readonly project: {
+      readonly id: string;
+      readonly name: string;
+      readonly slug: string;
+    };
+    readonly requestedBy: {
+      readonly id: string;
+      readonly displayName: string;
+      readonly walletAddress: string;
+    };
+  }>;
+  readonly recentProjectActivity: Array<{
+    readonly id: string;
+    readonly service: string;
+    readonly route: string;
+    readonly method: string;
+    readonly statusCode: number;
+    readonly durationMs: number;
+    readonly createdAt: string;
+    readonly project: {
+      readonly id: string;
+      readonly name: string;
+      readonly slug: string;
+    } | null;
+  }>;
+  readonly interestSubmissions: {
+    readonly total: number;
+    readonly recent: Array<{
+      readonly id: string;
+      readonly name: string;
+      readonly email: string;
+      readonly role: string;
+      readonly team: string | null;
+      readonly expectedRequestVolume: string;
+      readonly interestAreas: readonly string[];
+      readonly operatorInterest: boolean;
+      readonly status: string;
+      readonly createdAt: string;
+    }>;
+  };
+  readonly recentApiKeyActivity: Array<{
+    readonly id: string;
+    readonly label: string;
+    readonly prefix: string;
+    readonly status: string;
+    readonly lastUsedAt: string | null;
+    readonly createdAt: string;
+    readonly project: {
+      readonly id: string;
+      readonly name: string;
+      readonly slug: string;
+    };
+    readonly createdBy: {
+      readonly id: string;
+      readonly displayName: string;
+      readonly walletAddress: string;
+    };
+  }>;
+  readonly feedbackSubmissions: {
+    readonly total: number;
+    readonly open: number;
+    readonly recent: Array<{
+      readonly id: string;
+      readonly name: string;
+      readonly email: string;
+      readonly role: string | null;
+      readonly team: string | null;
+      readonly walletAddress: string | null;
+      readonly category: "BUG_REPORT" | "SUPPORT_REQUEST" | "ONBOARDING_FRICTION" | "PRODUCT_FEEDBACK";
+      readonly message: string;
+      readonly source: string;
+      readonly page: string | null;
+      readonly status: string;
+      readonly createdAt: string;
+      readonly project: {
+        readonly id: string;
+        readonly name: string;
+        readonly slug: string;
+      } | null;
+    }>;
+  };
+  readonly launchFunnel: {
+    readonly periodDays: number;
+    readonly counts: {
+      readonly landingCtaClicks: number;
+      readonly walletConnectIntent: number;
+      readonly projectCreationStarted: number;
+      readonly fundingFlowStarted: number;
+      readonly apiKeyCreated: number;
+      readonly interestSubmitted: number;
+    };
+  };
+}
+
+export interface OperatorSummary {
+  readonly operator: {
+    readonly id: string;
+    readonly name: string;
+    readonly email: string;
+    readonly walletAddress: string;
+    readonly status: string;
+    readonly reputationScore?: number;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+  };
+  readonly nodes: Array<{
+    readonly id: string;
+    readonly projectId: string | null;
+    readonly name: string;
+    readonly network: string;
+    readonly endpoint: string;
+    readonly region: string;
+    readonly status: string;
+    readonly reliabilityScore?: number;
+    readonly lastHeartbeatAt: string | null;
+    readonly latestMetrics?: {
+      readonly cpuUsage: number;
+      readonly memoryUsage: number;
+      readonly errorRate: number;
+      readonly recordedAt: string;
+    };
+  }>;
+}
+
+export interface SampleTrendPoint {
+  readonly label: string;
+  readonly value: number;
+}
+
+export interface SampleStatusNarrative {
+  readonly timestamp: string;
+  readonly title: string;
+  readonly body: string;
+  readonly tone: "success" | "warning" | "danger" | "neutral";
+}
