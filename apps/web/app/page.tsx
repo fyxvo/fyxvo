@@ -1,647 +1,451 @@
 import Link from "next/link";
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Notice,
-} from "@fyxvo/ui";
-import { LineChartCard } from "../components/charts";
+import { Badge, Button, Notice } from "@fyxvo/ui";
 import { CopyButton } from "../components/copy-button";
-import { MetricCard } from "../components/metric-card";
-import { BrandLogo } from "../components/brand-logo";
 import { SocialLinkButtons } from "../components/social-links";
 import { TrackedLinkButton } from "../components/tracked-link-button";
 import { getStatusSnapshot } from "../lib/server-status";
-import { webEnv } from "../lib/env";
 import { formatDuration } from "../lib/format";
 import { liveDevnetState } from "../lib/live-state";
-import { dashboardTrend } from "../lib/sample-data";
 
 export default async function HomePage() {
   const status = await getStatusSnapshot();
-  const gatewayLatency = status.gatewayStatus.metrics?.standard?.averageLatencyMs ?? 0;
-  const gatewaySuccessRate = status.gatewayStatus.metrics?.standard?.successRate ?? 0;
+  const apiOk = status.apiHealth.status === "ok";
+  const gatewayOk = status.gatewayHealth.status === "ok";
+  const protocolReady = Boolean(status.apiStatus.protocolReadiness?.ready);
+  const gatewayLatency = status.gatewayStatus.metrics?.standard?.averageLatencyMs;
   const totalRequests = status.gatewayStatus.metrics?.totals?.requests ?? 0;
-  const quickstartCurl = `curl -X POST ${webEnv.gatewayBaseUrl}/rpc \\
+
+  const curlExample = `curl -X POST https://rpc.fyxvo.com/rpc \\
   -H "content-type: application/json" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}'`;
 
   return (
-    <div className="space-y-10 lg:space-y-12">
-      <section className="fyxvo-scroll-section grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)] overflow-hidden">
-          <CardContent className="grid gap-8 px-6 py-8 md:px-8 md:py-10">
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-2 text-sm text-brand-200">
-                <span className="h-2 w-2 rounded-full bg-brand-400" />
-                Private alpha · SOL devnet path live
-              </div>
-              <BrandLogo iconClassName="h-14 w-14" className="gap-4" />
-              <div className="space-y-4">
-                <h1 className="max-w-3xl font-display text-4xl font-semibold tracking-tight text-[var(--fyxvo-text)] sm:text-5xl md:text-6xl">
-                  Fund a Solana project on devnet, issue a key, and reach the first real request in
-                  one working path.
-                </h1>
-                <p className="max-w-2xl text-lg leading-8 text-[var(--fyxvo-text-muted)]">
-                  Fyxvo is for early Solana teams that want a real devnet path for funded RPC,
-                  project activation, analytics visibility, and honest public status. SOL is live,
-                  USDC stays gated until enabled, and the current operator path is managed
-                  infrastructure rather than a fake open marketplace.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <TrackedLinkButton
-                  href="/docs"
-                  eventName="landing_cta_clicked"
-                  eventSource="home-hero-quickstart"
-                  size="lg"
-                  className="w-full justify-center sm:w-auto"
-                >
-                  Start quickstart
-                </TrackedLinkButton>
-                <TrackedLinkButton
-                  href="/pricing"
-                  eventName="landing_cta_clicked"
-                  eventSource="home-hero-pricing"
-                  size="lg"
-                  variant="secondary"
-                  className="w-full justify-center sm:w-auto"
-                >
-                  Review pricing
-                </TrackedLinkButton>
-                <TrackedLinkButton
-                  href="/dashboard"
-                  eventName="landing_cta_clicked"
-                  eventSource="home-hero-dashboard"
-                  size="lg"
-                  variant="ghost"
-                  className="w-full justify-center sm:w-auto"
-                >
-                  Open dashboard
-                </TrackedLinkButton>
-                <TrackedLinkButton
-                  href="/contact"
-                  eventName="landing_cta_clicked"
-                  eventSource="home-hero-contact"
-                  size="lg"
-                  variant="ghost"
-                  className="w-full justify-center sm:w-auto"
-                >
-                  Request founder follow-up
-                </TrackedLinkButton>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  {
-                    title: "Who this is for",
-                    body: "Teams validating real devnet RPC usage, priority-path behavior, and project funding flow before a broader rollout.",
-                  },
-                  {
-                    title: "Why use Fyxvo now",
-                    body: "It keeps the live path explicit: what works today, what is managed, and what is still gated are all visible from the product.",
-                  },
-                  {
-                    title: "How to start in minutes",
-                    body: "Connect a wallet, activate one project, fund it with SOL, issue one key, and send one request to the hosted relay.",
-                  },
-                  {
-                    title: "Where to go next",
-                    body: "Docs for the quickstart, pricing for usage context, dashboard for the live flow, and contact for founder follow-up.",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.title}
-                    className="rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] px-4 py-4 text-sm text-[var(--fyxvo-text-soft)]"
-                  >
-                    <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                      {item.title}
-                    </div>
-                    <div className="mt-2 leading-6">{item.body}</div>
-                  </div>
-                ))}
-              </div>
+    <div>
+      {/* Hero */}
+      <section className="border-b border-[var(--fyxvo-border)] py-20 lg:py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-md border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-sm text-brand-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
+              Solana devnet · Private alpha
             </div>
-          </CardContent>
-        </Card>
 
-        <div className="grid gap-6">
-          <MetricCard
-            label="Standard relay latency"
-            value={gatewayLatency > 0 ? formatDuration(gatewayLatency) : "Live"}
-            detail="Pulled from the current gateway status surface. This is the live relay path, not static marketing copy."
-            accent={
-              <Badge tone={status.gatewayHealth.status === "ok" ? "success" : "warning"}>
-                {status.gatewayHealth.status}
-              </Badge>
-            }
-          />
-          <MetricCard
-            label="Gateway success rate"
-            value={gatewaySuccessRate > 0 ? `${gatewaySuccessRate.toFixed(1)}%` : "Stable"}
-            detail="Fyxvo keeps the reliability signal visible beside funding and operator context so teams can react before credits or upstreams degrade."
-            accent={<Badge tone="brand">{status.gatewayStatus.nodeCount ?? 0} nodes</Badge>}
-          />
-          <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-            <CardHeader>
-              <CardTitle>Live deployment</CardTitle>
-              <CardDescription>
-                The frontend, API, gateway, and status surfaces are all pointing at the hosted stack
-                and the deployed devnet program.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                  Program ID
-                </div>
-                <div className="mt-2 break-all text-sm font-medium text-[var(--fyxvo-text)]">
-                  {liveDevnetState.programId}
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                    Requests tracked
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-[var(--fyxvo-text)]">
-                    {totalRequests}
-                  </div>
-                </div>
-                <div className="rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                    USDC path
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-[var(--fyxvo-text)]">
-                    {webEnv.enableUsdc ? "Enabled" : "Gated"}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+            <h1 className="font-display text-5xl font-semibold leading-[1.06] tracking-tight text-[var(--fyxvo-text)] sm:text-6xl lg:text-7xl">
+              Funded RPC access for{" "}
+              <span className="fyxvo-text-gradient">Solana developers.</span>
+            </h1>
 
-      <section className="fyxvo-scroll-section grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Public trust surface</CardTitle>
-            <CardDescription>
-              The launch state is explicit. What is live, what is gated, and what is still managed
-              are all visible without reading between the lines.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                SOL path
-              </div>
-              <div className="mt-2 text-lg font-semibold text-[var(--fyxvo-text)]">
-                Live on devnet
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[var(--fyxvo-text-soft)]">
-                Project activation, funding, API keys, funded relay access, request logging, and
-                analytics are all operating against the deployed devnet program.
-              </p>
-            </div>
-            <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                USDC path
-              </div>
-              <div className="mt-2 text-lg font-semibold text-[var(--fyxvo-text)]">
-                {webEnv.enableUsdc ? "Enabled by config" : "Intentionally gated"}
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[var(--fyxvo-text-soft)]">
-                The asset path exists on chain, but the public product keeps it gated until the
-                deployment explicitly enables it.
-              </p>
-            </div>
-            <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                Operator topology
-              </div>
-              <div className="mt-2 text-lg font-semibold text-[var(--fyxvo-text)]">
-                Managed infrastructure
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[var(--fyxvo-text-soft)]">
-                The current operator path is managed by Fyxvo. It is described as managed
-                infrastructure, not as open decentralized supply.
-              </p>
-            </div>
-            <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                Public health links
-              </div>
-              <div className="mt-3 flex flex-wrap gap-3">
-                <Button asChild size="sm" variant="secondary">
-                  <Link href={webEnv.statusPageUrl}>Status page</Link>
-                </Button>
-                <Button asChild size="sm" variant="secondary">
-                  <Link href={new URL("/health", webEnv.apiBaseUrl).toString()} target="_blank">
-                    API health
-                  </Link>
-                </Button>
-                <Button asChild size="sm" variant="secondary">
-                  <Link
-                    href={new URL("/v1/status", webEnv.gatewayBaseUrl).toString()}
-                    target="_blank"
-                  >
-                    RPC status
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            <p className="mt-6 max-w-xl text-lg leading-8 text-[var(--fyxvo-text-muted)]">
+              Activate a project on chain, fund it with SOL, issue an API key, and route real
+              devnet traffic through a managed relay. One flow. No mock endpoints.
+            </p>
 
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Fastest path to first request</CardTitle>
-            <CardDescription>
-              This is the shortest working path through the live product for a new developer.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <pre className="overflow-x-auto rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4 text-xs leading-6 text-[var(--fyxvo-text-soft)]">
-              <code>{quickstartCurl}</code>
-            </pre>
-            <div className="flex flex-wrap gap-3">
-              <CopyButton value={quickstartCurl} label="Copy curl example" />
-              <CopyButton value={`${webEnv.gatewayBaseUrl}/rpc`} label="Copy standard endpoint" />
-              <Button asChild size="sm" variant="secondary">
-                <Link href="/docs">Open quickstart</Link>
-              </Button>
-              <Button asChild size="sm" variant="secondary">
-                <Link href="/contact">Get founder help</Link>
-              </Button>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                  Need a key first?
-                </div>
-                <p className="mt-2 text-sm leading-6 text-[var(--fyxvo-text-soft)]">
-                  Connect a wallet, activate one project, fund it with SOL, then create one API key
-                  from the dashboard or API keys page.
-                </p>
-              </div>
-              <div className="rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                  Want the full flow?
-                </div>
-                <p className="mt-2 text-sm leading-6 text-[var(--fyxvo-text-soft)]">
-                  The docs page now includes quickstart, SDK usage, priority relay examples,
-                  troubleshooting, and direct status links.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section id="features" className="fyxvo-scroll-section grid gap-6 lg:grid-cols-3">
-        {[
-          {
-            title: "Funded relay access",
-            body: "Projects move from wallet auth to on-chain activation to spendable RPC access without fake balance assumptions or hidden service states.",
-          },
-          {
-            title: "One operator surface",
-            body: "Projects, keys, funding, analytics, and managed operator context stay in one structured flow instead of four disconnected dashboards.",
-          },
-          {
-            title: "Honest public status",
-            body: "Fyxvo shows live readiness, managed infrastructure posture, and configuration-gated asset support without pretending the launch topology is more decentralized than it is.",
-          },
-        ].map((item) => (
-          <Card key={item.title} className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-            <CardHeader>
-              <CardTitle>{item.title}</CardTitle>
-              <CardDescription>{item.body}</CardDescription>
-            </CardHeader>
-          </Card>
-        ))}
-      </section>
-
-      <section
-        id="community"
-        className="fyxvo-scroll-section grid gap-6 xl:grid-cols-[1.05fr_0.95fr]"
-      >
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Launch with a direct founder path</CardTitle>
-            <CardDescription>
-              Fyxvo is live on devnet today. Community paths are open for launch questions,
-              integration feedback, and managed operator conversations. Private alpha support is
-              real and routed through the product, not hidden behind a vague contact promise.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                Who this is for
-              </div>
-              <p className="mt-3 text-sm leading-7 text-[var(--fyxvo-text-soft)]">
-                Teams that want to validate funded Solana RPC, priority relay behavior, on-chain
-                project activation, and analytics visibility before expanding beyond the current
-                managed launch topology.
-              </p>
-            </div>
-            <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                Start in minutes
-              </div>
-              <p className="mt-3 text-sm leading-7 text-[var(--fyxvo-text-soft)]">
-                Connect a supported wallet, activate one project, fund it with a small SOL devnet
-                transaction, generate one key, and send one request to the hosted relay.
-              </p>
-            </div>
-            <SocialLinkButtons />
-          </CardContent>
-        </Card>
-
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Choose the right next step</CardTitle>
-            <CardDescription>
-              The launch path stays honest about what is ready for self-serve evaluation and what
-              still benefits from a direct conversation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Notice tone="success" title="Live today">
-              Wallet auth, project activation, SOL funding, standard RPC, priority relay, request
-              logging, and analytics are all live on Solana devnet.
-            </Notice>
-            <Notice tone="neutral" title="Still gated">
-              USDC stays disabled until explicitly enabled in runtime configuration and validated
-              for the target deployment.
-            </Notice>
-            <Notice tone="neutral" title="Managed first">
-              The current launch path uses managed operator infrastructure so routing behavior and
-              response quality stay predictable while early traffic patterns settle.
-            </Notice>
-            <div className="flex flex-wrap gap-3">
-              <TrackedLinkButton
-                href="/pricing"
-                eventName="landing_cta_clicked"
-                eventSource="home-community-pricing"
-                variant="secondary"
-              >
-                Review pricing
-              </TrackedLinkButton>
-              <TrackedLinkButton
-                href="/contact"
-                eventName="landing_cta_clicked"
-                eventSource="home-community-contact"
-                variant="secondary"
-              >
-                Request founder follow-up
-              </TrackedLinkButton>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section
-        id="how-it-works"
-        className="fyxvo-scroll-section grid gap-6 xl:grid-cols-[0.9fr_1.1fr]"
-      >
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>How the live path works</CardTitle>
-            <CardDescription>
-              The product is organized around the actual sequence teams follow in production, not
-              around internal service boundaries.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              "Connect a wallet and prove ownership with a signed challenge.",
-              "Create a project and confirm the live on-chain activation transaction.",
-              "Prepare a SOL funding transaction, sign it in the wallet, and confirm it on devnet.",
-              "Generate one API key, hit the funded relay once, and watch logs and analytics react.",
-            ].map((step, index) => (
-              <div
-                key={step}
-                className="flex gap-4 rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-sm font-semibold text-brand-300">
-                  {index + 1}
-                </div>
-                <p className="text-sm leading-7 text-[var(--fyxvo-text-soft)]">{step}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <LineChartCard
-          title="Relay demand shape"
-          description="Traffic shape matters more than vanity totals. The gateway, funding logic, and operator path all benefit when the busy windows are visible."
-          points={dashboardTrend}
-        />
-      </section>
-
-      <section
-        id="developer-flow"
-        className="fyxvo-scroll-section grid gap-6 xl:grid-cols-[1.08fr_0.92fr]"
-      >
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Developer flow</CardTitle>
-            <CardDescription>
-              The shortest path through Fyxvo is clear: authenticate, activate, fund, issue a key,
-              and send traffic.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            {[
-              { label: "Control API", value: webEnv.apiBaseUrl },
-              { label: "RPC endpoint", value: `${webEnv.gatewayBaseUrl}/rpc` },
-              { label: "Priority relay", value: `${webEnv.gatewayBaseUrl}/priority` },
-              { label: "Status surface", value: webEnv.statusPageUrl },
-            ].map(({ label, value }) => (
-              <div
-                key={label}
-                className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                      {label}
-                    </div>
-                    <div className="mt-2 break-all text-sm font-medium text-[var(--fyxvo-text)]">
-                      {value}
-                    </div>
-                  </div>
-                  <CopyButton value={value} className="self-start sm:shrink-0" />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <div className="space-y-6">
-          <Notice tone="success" title="SOL is live">
-            Wallet-authenticated project activation, funding, funded relay access, request logging,
-            worker rollups, and analytics are live on Solana devnet.
-          </Notice>
-          <Notice tone="neutral" title="USDC remains gated">
-            The protocol asset path exists, but the public product keeps USDC disabled until you
-            intentionally enable and validate it for the current deployment.
-          </Notice>
-          <Notice tone="neutral" title="Managed launch topology">
-            The current operator path is managed infrastructure operated by Fyxvo. The product says
-            that plainly instead of dressing it up as an open external operator market.
-          </Notice>
-        </div>
-      </section>
-
-      <section id="operators" className="fyxvo-scroll-section grid gap-6 lg:grid-cols-3">
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)] lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Node operator launch mode</CardTitle>
-            <CardDescription>
-              Fyxvo launches with a managed operator path so routing quality and response times stay
-              predictable while the public product matures.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
-            {[
-              ["Managed operator wallet", liveDevnetState.managedOperatorWallet],
-              ["Operator account", liveDevnetState.managedOperatorAccount],
-              ["Reward account", liveDevnetState.managedRewardAccount],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4"
-              >
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                  {label}
-                </div>
-                <div className="mt-2 break-all text-sm text-[var(--fyxvo-text)]">{value}</div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Next operator action</CardTitle>
-            <CardDescription>
-              Build funded projects, observe relay pressure, and use analytics to decide when the
-              managed topology needs broader node supply.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm leading-7 text-[var(--fyxvo-text-muted)]">
-            <p>Watch request pressure and latency together.</p>
-            <p>Keep treasury reserve visible before priority demand spikes.</p>
-            <p>Use the status page as the external truth surface during rollout.</p>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section
-        id="status-preview"
-        className="fyxvo-scroll-section grid gap-6 xl:grid-cols-[1fr_1fr]"
-      >
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Status preview</CardTitle>
-            <CardDescription>
-              These values come from the hosted API and gateway surfaces. They update with the live
-              stack.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                API
-              </div>
-              <div className="mt-2 flex items-center gap-3">
-                <Badge tone={status.apiHealth.status === "ok" ? "success" : "warning"}>
-                  {status.apiHealth.status}
-                </Badge>
-                <span className="text-sm text-[var(--fyxvo-text-soft)]">
-                  {status.apiStatus.environment ?? "hosted"}
-                </span>
-              </div>
-            </div>
-            <div className="rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                Gateway
-              </div>
-              <div className="mt-2 flex items-center gap-3">
-                <Badge tone={status.gatewayHealth.status === "ok" ? "success" : "warning"}>
-                  {status.gatewayHealth.status}
-                </Badge>
-                <span className="text-sm text-[var(--fyxvo-text-soft)]">
-                  {status.gatewayStatus.nodeCount ?? 0} nodes
-                </span>
-              </div>
-            </div>
-            <div className="rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                Program
-              </div>
-              <div className="mt-2 text-sm font-medium text-[var(--fyxvo-text)]">
-                {liveDevnetState.programId}
-              </div>
-            </div>
-            <div className="rounded-[1.4rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                Success rate
-              </div>
-              <div className="mt-2 text-sm font-medium text-[var(--fyxvo-text)]">
-                {gatewaySuccessRate > 0
-                  ? `${gatewaySuccessRate.toFixed(1)}%`
-                  : "Waiting for traffic"}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Ready to continue</CardTitle>
-            <CardDescription>
-              The shortest live path through the product is available from the dashboard once the
-              wallet session is active.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
-                Suggested next action
-              </div>
-              <div className="mt-2 text-lg font-semibold text-[var(--fyxvo-text)]">
-                Connect a wallet, activate a project, fund with SOL, then copy the RPC endpoint from
-                the dashboard.
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="mt-8 flex flex-wrap gap-3">
               <TrackedLinkButton
                 href="/dashboard"
                 eventName="landing_cta_clicked"
-                eventSource="home-status-dashboard"
+                eventSource="home-hero-dashboard"
+                size="lg"
               >
-                Go to dashboard
+                Open dashboard
               </TrackedLinkButton>
               <TrackedLinkButton
                 href="/docs"
                 eventName="landing_cta_clicked"
-                eventSource="home-status-docs"
+                eventSource="home-hero-docs"
+                size="lg"
                 variant="secondary"
               >
                 Read docs
               </TrackedLinkButton>
+              <TrackedLinkButton
+                href="/contact"
+                eventName="landing_cta_clicked"
+                eventSource="home-hero-contact"
+                size="lg"
+                variant="ghost"
+              >
+                Talk to the founder
+              </TrackedLinkButton>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Live network status strip */}
+      <section className="border-b border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg-elevated)]/50">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 py-4">
+            <span className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+              Live network
+            </span>
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${apiOk ? "bg-emerald-400" : "bg-amber-400"}`}
+              />
+              <span className="text-sm text-[var(--fyxvo-text-soft)]">
+                API{" "}
+                <span
+                  className={
+                    apiOk ? "text-emerald-400" : "text-amber-400"
+                  }
+                >
+                  {apiOk ? "operational" : "degraded"}
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${gatewayOk ? "bg-emerald-400" : "bg-amber-400"}`}
+              />
+              <span className="text-sm text-[var(--fyxvo-text-soft)]">
+                Gateway{" "}
+                <span
+                  className={
+                    gatewayOk ? "text-emerald-400" : "text-amber-400"
+                  }
+                >
+                  {gatewayOk ? "operational" : "degraded"}
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`h-2 w-2 rounded-full ${protocolReady ? "bg-emerald-400" : "bg-amber-400"}`}
+              />
+              <span className="text-sm text-[var(--fyxvo-text-soft)]">
+                Protocol{" "}
+                <span
+                  className={
+                    protocolReady ? "text-emerald-400" : "text-amber-400"
+                  }
+                >
+                  {protocolReady ? "ready" : "attention"}
+                </span>
+              </span>
+            </div>
+            {typeof gatewayLatency === "number" && gatewayLatency > 0 ? (
+              <div className="text-sm text-[var(--fyxvo-text-muted)]">
+                {formatDuration(gatewayLatency)} avg latency
+              </div>
+            ) : null}
+            {totalRequests > 0 ? (
+              <div className="text-sm text-[var(--fyxvo-text-muted)]">
+                {totalRequests.toLocaleString()} requests tracked
+              </div>
+            ) : null}
+            <Link
+              href="/status"
+              className="ml-auto text-xs text-brand-400 transition-colors hover:text-brand-300"
+            >
+              Full status
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Product value */}
+      <section id="features" className="py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-12">
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-[var(--fyxvo-text)] sm:text-4xl">
+              What Fyxvo gives you
+            </h2>
+            <p className="mt-3 max-w-2xl text-base text-[var(--fyxvo-text-muted)]">
+              Four capabilities in one product, connected to a single on-chain funding source.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                label: "Standard RPC",
+                badge: "Live",
+                badgeTone: "success" as const,
+                body: "JSON-RPC relay over funded project credentials with multi-node routing, rate limiting, and request logging.",
+              },
+              {
+                label: "Priority relay",
+                badge: "Live",
+                badgeTone: "success" as const,
+                body: "Separate routing mode, separate rate window, and distinct pricing. Opt in per key when latency shape matters.",
+              },
+              {
+                label: "Analytics",
+                badge: "Live",
+                badgeTone: "success" as const,
+                body: "Request volume, latency, error rates, and balance consumption tied to your project. Updated from real request logs.",
+              },
+              {
+                label: "USDC funding",
+                badge: "Gated",
+                badgeTone: "neutral" as const,
+                body: "The on-chain asset path exists. Public product keeps it disabled until explicitly enabled in runtime config.",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-display text-base font-semibold text-[var(--fyxvo-text)]">
+                    {item.label}
+                  </p>
+                  <Badge tone={item.badgeTone}>{item.badge}</Badge>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-[var(--fyxvo-text-muted)]">
+                  {item.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section id="how-it-works" className="border-t border-[var(--fyxvo-border)] py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-12 lg:grid-cols-2">
+            <div>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-[var(--fyxvo-text)] sm:text-4xl">
+                How the live path works
+              </h2>
+              <p className="mt-3 text-base text-[var(--fyxvo-text-muted)]">
+                Six steps from nothing to real relay traffic. Every step is real. Nothing is mocked.
+              </p>
+              <div className="mt-8 space-y-4">
+                {[
+                  "Connect a Solana wallet and prove ownership with a signed challenge.",
+                  "Create a project. Sign the on-chain activation transaction in your wallet.",
+                  "Prepare a SOL funding transaction and confirm it on Solana devnet.",
+                  "Issue an API key with scoped access to the relay endpoints.",
+                  "Send a JSON-RPC request to the gateway with your API key.",
+                  "Watch request logs, latency, and balance update in analytics.",
+                ].map((step, i) => (
+                  <div key={step} className="flex gap-4">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand-500/30 bg-brand-500/10 font-display text-sm font-semibold text-brand-300">
+                      {i + 1}
+                    </div>
+                    <p className="pt-1 text-sm leading-7 text-[var(--fyxvo-text-soft)]">{step}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+                  Trust surface
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: "SOL funding", value: "Live on devnet" },
+                    { label: "USDC funding", value: "Config-gated" },
+                    { label: "Operators", value: "Managed by Fyxvo" },
+                    { label: "Authority", value: "Single-signer" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-md border border-[var(--fyxvo-border)] p-3">
+                      <p className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+                        {item.label}
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-[var(--fyxvo-text)]">
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <Notice tone="success" title="SOL path is live">
+                Wallet auth, project activation, SOL funding, standard RPC, priority relay, request
+                logging, and analytics are all operating against the deployed devnet program.
+              </Notice>
+              <Notice tone="neutral" title="Operator topology is managed">
+                Routing runs through Fyxvo-managed infrastructure during the private alpha. This
+                keeps latency predictable while early traffic patterns settle.
+              </Notice>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Developer quickstart */}
+      <section id="developer-flow" className="border-t border-[var(--fyxvo-border)] py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-12 lg:grid-cols-[1fr_1fr]">
+            <div>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-[var(--fyxvo-text)] sm:text-4xl">
+                First request in minutes
+              </h2>
+              <p className="mt-3 text-base text-[var(--fyxvo-text-muted)]">
+                The gateway accepts standard JSON-RPC requests with an API key in the header.
+              </p>
+
+              <div className="mt-6 overflow-hidden rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)]">
+                <div className="flex items-center justify-between border-b border-[var(--fyxvo-border)] px-4 py-2.5">
+                  <span className="text-xs text-[var(--fyxvo-text-muted)]">Standard RPC · curl</span>
+                  <CopyButton value={curlExample} label="Copy" />
+                </div>
+                <pre className="overflow-x-auto p-4 text-xs leading-6 text-[var(--fyxvo-text-soft)]">
+                  <code>{curlExample}</code>
+                </pre>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <CopyButton value="https://rpc.fyxvo.com/rpc" label="Copy RPC endpoint" />
+                <CopyButton value="https://rpc.fyxvo.com/priority" label="Copy priority endpoint" />
+                <Button asChild size="sm" variant="secondary">
+                  <Link href="/docs">Full quickstart</Link>
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-sm font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+                Endpoints
+              </p>
+              {[
+                { label: "Control API", value: "api.fyxvo.com" },
+                { label: "Standard RPC", value: "rpc.fyxvo.com/rpc" },
+                { label: "Priority relay", value: "rpc.fyxvo.com/priority" },
+                { label: "Status page", value: "status.fyxvo.com" },
+              ].map(({ label, value }) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between gap-4 rounded-md border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+                      {label}
+                    </p>
+                    <p className="mt-0.5 font-mono text-sm text-[var(--fyxvo-text)]">{value}</p>
+                  </div>
+                  <CopyButton value={`https://${value}`} className="shrink-0" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Node operator section */}
+      <section id="operators" className="border-t border-[var(--fyxvo-border)] py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-12 lg:grid-cols-[1fr_1fr]">
+            <div>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-[var(--fyxvo-text)] sm:text-4xl">
+                Managed operator infrastructure
+              </h2>
+              <p className="mt-3 text-base text-[var(--fyxvo-text-muted)]">
+                Fyxvo launches with a single managed operator so routing quality stays predictable
+                while the product matures. This is not an open marketplace claim.
+              </p>
+              <div className="mt-6 space-y-3">
+                {[
+                  {
+                    label: "Managed operator wallet",
+                    value: liveDevnetState.managedOperatorWallet,
+                  },
+                  {
+                    label: "Operator account",
+                    value: liveDevnetState.managedOperatorAccount,
+                  },
+                  {
+                    label: "Reward account",
+                    value: liveDevnetState.managedRewardAccount,
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-md border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3"
+                  >
+                    <p className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+                      {item.label}
+                    </p>
+                    <p className="mt-1 break-all font-mono text-xs text-[var(--fyxvo-text-soft)]">
+                      {item.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">
+                <p className="font-display text-base font-semibold text-[var(--fyxvo-text)]">
+                  Program ID
+                </p>
+                <p className="mt-2 break-all font-mono text-sm text-[var(--fyxvo-text-soft)]">
+                  {liveDevnetState.programId}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <CopyButton value={liveDevnetState.programId} label="Copy program ID" />
+                </div>
+              </div>
+              <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">
+                <p className="font-display text-base font-semibold text-[var(--fyxvo-text)]">
+                  Admin authority
+                </p>
+                <p className="mt-2 break-all font-mono text-sm text-[var(--fyxvo-text-soft)]">
+                  {liveDevnetState.adminAuthority}
+                </p>
+              </div>
+              <Button asChild variant="secondary">
+                <Link href="/operators">Operator details</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Community */}
+      <section id="community" className="border-t border-[var(--fyxvo-border)] py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[1fr_1fr]">
+            <div>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-[var(--fyxvo-text)] sm:text-4xl">
+                Join the launch channels
+              </h2>
+              <p className="mt-3 max-w-lg text-base text-[var(--fyxvo-text-muted)]">
+                X for launch updates. Discord for product questions. Telegram for quick coordination
+                during devnet rollout. Direct founder support is available through the contact form.
+              </p>
+              <div className="mt-6">
+                <SocialLinkButtons />
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">
+                <p className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+                  Who this is for
+                </p>
+                <p className="mt-3 text-sm leading-7 text-[var(--fyxvo-text-soft)]">
+                  Teams validating funded Solana RPC, priority relay behavior, on-chain project
+                  activation, and analytics visibility before expanding beyond the current managed
+                  topology.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <TrackedLinkButton
+                  href="/pricing"
+                  eventName="landing_cta_clicked"
+                  eventSource="home-community-pricing"
+                  variant="secondary"
+                >
+                  Review pricing
+                </TrackedLinkButton>
+                <TrackedLinkButton
+                  href="/contact"
+                  eventName="landing_cta_clicked"
+                  eventSource="home-community-contact"
+                  variant="secondary"
+                >
+                  Talk to the founder
+                </TrackedLinkButton>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   );

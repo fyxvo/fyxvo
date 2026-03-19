@@ -18,8 +18,8 @@ const nodeColumns: readonly TableColumn<OperatorSummary["nodes"][number]>[] = [
     header: "Node",
     cell: (node) => (
       <div>
-        <div className="font-medium text-white">{node.name}</div>
-        <div className="text-xs uppercase tracking-[0.12em] text-slate-500">{node.region}</div>
+        <div className="font-medium text-[var(--fyxvo-text)]">{node.name}</div>
+        <div className="text-xs uppercase tracking-[0.12em] text-[var(--fyxvo-text-muted)]">{node.region}</div>
       </div>
     )
   },
@@ -191,11 +191,11 @@ export default function OperatorsPage() {
             ["Nodes", String(portal.adminStats.totals.nodes)],
             ["Operators", String(portal.adminStats.totals.nodeOperators)]
           ].map(([label, value]) => (
-            <Card key={label} className="fyxvo-surface border-white/5">
+            <Card key={label} className="fyxvo-surface border-[color:var(--fyxvo-border)]">
               <CardHeader>
                 <CardTitle>{label}</CardTitle>
               </CardHeader>
-              <CardContent className="text-3xl font-semibold text-white">{value}</CardContent>
+              <CardContent className="text-3xl font-semibold text-[var(--fyxvo-text)]">{value}</CardContent>
             </Card>
           ))}
         </section>
@@ -203,7 +203,7 @@ export default function OperatorsPage() {
 
       <section className="grid gap-6">
         {portal.operators.map((summary) => (
-          <Card key={summary.operator.id} className="fyxvo-surface border-white/5">
+          <Card key={summary.operator.id} className="fyxvo-surface border-[color:var(--fyxvo-border)]">
             <CardHeader>
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>

@@ -64,11 +64,12 @@ const projectColumns: readonly TableColumn<PortalProject>[] = [
   },
 ];
 
-const workspaceSections = [
+function getWorkspaceSections(selectedProjectSlug?: string) {
+  return [
   {
     title: "Projects",
     body: "Keep project activation, on-chain identity, and ownership close together.",
-    href: "/projects/solstice-labs",
+    href: selectedProjectSlug ? `/projects/${selectedProjectSlug}` : "/dashboard",
   },
   {
     title: "API keys",
@@ -95,7 +96,8 @@ const workspaceSections = [
     body: "Check hosted service condition, protocol readiness, and managed infrastructure posture.",
     href: "/status",
   },
-] as const;
+  ] as const;
+}
 
 function hasSpendableSolCredits(value: string | undefined) {
   if (!value) {
@@ -302,6 +304,7 @@ export default function DashboardPage() {
   const [description, setDescription] = useState("");
 
   const hasProjects = portal.projects.length > 0;
+  const workspaceSections = getWorkspaceSections(portal.selectedProject?.slug);
   const hasApiKeys = portal.apiKeys.length > 0;
   const hasFunding =
     hasSpendableSolCredits(portal.onchainSnapshot.balances?.availableSolCredits) ||

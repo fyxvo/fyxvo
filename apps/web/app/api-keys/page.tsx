@@ -1,7 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Modal, Notice, Table, type TableColumn } from "@fyxvo/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Modal,
+  Notice,
+  Table,
+  type TableColumn,
+} from "@fyxvo/ui";
 import { CopyButton } from "../../components/copy-button";
 import { PageHeader } from "../../components/page-header";
 import { AuthGate } from "../../components/state-panels";
@@ -16,34 +29,51 @@ const columns: readonly TableColumn<PortalApiKey>[] = [
     header: "Key",
     cell: (apiKey) => (
       <div>
-        <div className="font-medium text-white">{apiKey.label}</div>
-        <div className="text-xs uppercase tracking-[0.12em] text-slate-500">{apiKey.prefix}</div>
+        <div className="font-medium text-[var(--fyxvo-text)]">{apiKey.label}</div>
+        <div className="font-mono text-xs uppercase tracking-[0.12em] text-[var(--fyxvo-text-muted)]">
+          {apiKey.prefix}
+        </div>
       </div>
-    )
+    ),
   },
   {
     key: "scopes",
     header: "Scopes",
     cell: (apiKey) => (
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {apiKey.scopes.map((scope) => (
           <Badge key={scope} tone="neutral">
             {scope}
           </Badge>
         ))}
       </div>
-    )
+    ),
   },
   {
     key: "lastUsed",
     header: "Last used",
-    cell: (apiKey) => (apiKey.lastUsedAt ? formatRelativeDate(apiKey.lastUsedAt) : "Never")
+    cell: (apiKey) => (
+      <span className="text-[var(--fyxvo-text-muted)]">
+        {apiKey.lastUsedAt ? formatRelativeDate(apiKey.lastUsedAt) : "Never"}
+      </span>
+    ),
+  },
+  {
+    key: "created",
+    header: "Created",
+    cell: (apiKey) => (
+      <span className="text-[var(--fyxvo-text-muted)]">
+        {formatRelativeDate(apiKey.createdAt)}
+      </span>
+    ),
   },
   {
     key: "status",
     header: "Status",
-    cell: (apiKey) => <Badge tone={apiKey.status === "ACTIVE" ? "success" : "danger"}>{apiKey.status}</Badge>
-  }
+    cell: (apiKey) => (
+      <Badge tone={apiKey.status === "ACTIVE" ? "success" : "danger"}>{apiKey.status}</Badge>
+    ),
+  },
 ];
 
 export default function ApiKeysPage() {
@@ -51,7 +81,9 @@ export default function ApiKeysPage() {
   const [label, setLabel] = useState("Priority relay");
   const [scopes, setScopes] = useState("project:read, rpc:request, priority:relay");
   const [expiresAt, setExpiresAt] = useState("");
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [revokeKey, setRevokeKey] = useState<PortalApiKey | null>(null);
+
   const exampleApiKey = portal.lastGeneratedApiKey ?? "YOUR_API_KEY";
   const standardRequest = `curl -X POST ${webEnv.gatewayBaseUrl}/rpc \\
   -H "content-type: application/json" \\
@@ -61,7 +93,9 @@ export default function ApiKeysPage() {
   -H "content-type: application/json" \\
   -H "x-api-key: ${exampleApiKey}" \\
   -d '{"jsonrpc":"2.0","id":1,"method":"getSlot"}'`;
-  const rateLimitedCount = portal.projectAnalytics.statusCodes.find((entry) => entry.statusCode === 429)?.count ?? 0;
+
+  const rateLimitedCount =
+    portal.projectAnalytics.statusCodes.find((entry) => entry.statusCode === 429)?.count ?? 0;
   const availableSolCredits = (() => {
     try {
       return BigInt(portal.onchainSnapshot.balances?.availableSolCredits ?? "0");
@@ -73,88 +107,109 @@ export default function ApiKeysPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="API keys"
+        eyebrow="API Keys"
         title="Create project keys with clear scope and predictable usage."
-        description="Projects can carry separate credentials for relay traffic, analytics, and internal tools without turning access control into guesswork for the rest of the team."
+        description="Separate credentials for relay traffic, analytics, and internal tools. Each key carries explicit scopes so access never relies on guesswork."
         actions={
-          <Button onClick={() => setOpen(true)} disabled={portal.walletPhase !== "authenticated"}>
+          <Button onClick={() => setCreateOpen(true)} disabled={portal.walletPhase !== "authenticated"}>
             Generate key
           </Button>
         }
       />
 
-      {portal.walletPhase !== "authenticated" ? <AuthGate body="Connect Phantom to list live keys, generate new credentials, and revoke compromised ones." /> : null}
+      {portal.walletPhase !== "authenticated" ? (
+        <AuthGate body="Connect a wallet to list live keys, generate new credentials, and revoke compromised ones." />
+      ) : null}
 
       {portal.lastGeneratedApiKey ? (
         <Notice tone="success" title="New API key generated">
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <span className="break-all text-white">{portal.lastGeneratedApiKey}</span>
+            <span className="break-all font-mono text-sm text-[var(--fyxvo-text)]">
+              {portal.lastGeneratedApiKey}
+            </span>
             <CopyButton value={portal.lastGeneratedApiKey} />
           </div>
           <p className="mt-4 text-sm leading-6 text-[var(--fyxvo-text-soft)]">
-            Copy it now. This is the only time the full key is shown. The request examples below will automatically use it while this page stays open.
+            Copy it now. This is the only time the full key is shown.
           </p>
         </Notice>
       ) : null}
+
       {portal.selectedProject && !portal.onchainSnapshot.projectAccountExists ? (
         <Notice tone="warning" title="Project activation still required">
-          Keys can be created now, but the gateway will only honor them once the selected project has confirmed activation on chain.
+          Keys can be created now, but the gateway will only honor them once the selected project
+          has confirmed activation on chain.
         </Notice>
       ) : null}
+
       {portal.selectedProject && availableSolCredits === 0n ? (
         <Notice tone="warning" title="Funding still required">
-          The key path is ready, but funded relay usage still depends on project balance. Open funding before handing this endpoint to teammates.
+          The key path is ready, but funded relay usage still depends on project balance. Open
+          funding before using this endpoint in production.
         </Notice>
       ) : null}
-      <Notice tone="neutral" title="Scope enforcement is live on the gateway">
-        Standard relay now requires <code>rpc:request</code>. Priority relay requires both <code>rpc:request</code> and <code>priority:relay</code>. Under-scoped keys are rejected with a clear gateway error instead of silently behaving like full-access keys.
+
+      <Notice tone="neutral" title="Scope enforcement is live">
+        Standard relay requires <code>rpc:request</code>. Priority relay requires both{" "}
+        <code>rpc:request</code> and <code>priority:relay</code>. Under-scoped keys are rejected
+        with a clear error.
       </Notice>
+
       {rateLimitedCount > 0 ? (
-        <Notice tone="neutral" title="Observed rate-limit pressure">
-          This project has already seen {rateLimitedCount} rate-limited responses. Keep standard and priority traffic separated so the team can reason about usage more clearly.
+        <Notice tone="neutral" title="Rate-limit pressure observed">
+          This project has seen {rateLimitedCount} rate-limited responses. Keep standard and
+          priority traffic separated so usage is easier to reason about.
         </Notice>
       ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <Table columns={columns} rows={portal.apiKeys} getRowKey={(item) => item.id} />
 
-        <Card className="fyxvo-surface border-white/5">
+        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>
             <CardTitle>Endpoint defaults</CardTitle>
             <CardDescription>
-              Keep credentials close to the routes they unlock. This makes it harder for teams to accidentally use a broad key where a narrower one would do.
+              Each route requires a minimum scope. Under-scoped keys are rejected immediately.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Standard relay</div>
-              <div className="mt-2 text-sm font-medium text-white">POST /rpc</div>
-              <div className="mt-2 text-xs text-slate-400">Required scope: rpc:request</div>
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Priority relay</div>
-              <div className="mt-2 text-sm font-medium text-white">POST /priority</div>
-              <div className="mt-2 text-xs text-slate-400">
-                Required scopes: rpc:request, priority:relay
+          <CardContent className="space-y-3">
+            {[
+              {
+                label: "Standard relay",
+                route: "POST /rpc",
+                scope: "rpc:request",
+              },
+              {
+                label: "Priority relay",
+                route: "POST /priority",
+                scope: "rpc:request, priority:relay",
+              },
+              {
+                label: "Analytics",
+                route: "GET /v1/analytics/overview",
+                scope: "project:read",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4"
+              >
+                <div className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+                  {item.label}
+                </div>
+                <div className="mt-1 font-mono text-sm font-medium text-[var(--fyxvo-text)]">
+                  {item.route}
+                </div>
+                <div className="mt-1 text-xs text-[var(--fyxvo-text-muted)]">
+                  Required: {item.scope}
+                </div>
               </div>
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Analytics</div>
-              <div className="mt-2 text-sm font-medium text-white">GET /v1/analytics/overview</div>
-            </div>
+            ))}
             {!portal.selectedProject ? (
               <Notice tone="neutral" title="Create a project first">
-                API keys belong to a specific project. Activate one project, then return here to issue the first relay key.
+                API keys belong to a specific project. Activate one project then return here.
               </Notice>
             ) : null}
-            {portal.apiKeys.length === 0 ? (
-              <Notice tone="neutral" title="No keys yet">
-                Start with one standard relay key. Add a separate priority key only when a workload really needs tighter latency control.
-              </Notice>
-            ) : null}
-            <Notice tone="neutral" title="Team usage note">
-              The current launch model is still owner-admin driven. You can issue distinct keys for workloads today, but shared collaborator roles are not yet presented as live product functionality.
-            </Notice>
           </CardContent>
         </Card>
       </section>
@@ -162,65 +217,71 @@ export default function ApiKeysPage() {
       <section className="grid gap-6 xl:grid-cols-2">
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>
-            <CardTitle>Make the first standard request</CardTitle>
+            <CardTitle>Standard relay request</CardTitle>
             <CardDescription>
-              This is the quickest way to confirm the project, funding, gateway, and logging path are all connected.
+              Confirm the project, funding, gateway, and logging path are all connected.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <pre className="overflow-x-auto rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4 text-xs leading-6 text-[var(--fyxvo-text-soft)]">
-              <code>{standardRequest}</code>
-            </pre>
-            <div className="flex flex-wrap gap-3">
-              <CopyButton value={standardRequest} label="Copy standard request" />
-              <CopyButton value={`${webEnv.gatewayBaseUrl}/rpc`} label="Copy endpoint" />
+            <div className="overflow-hidden rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)]">
+              <div className="flex items-center justify-between border-b border-[var(--fyxvo-border)] px-4 py-2">
+                <span className="text-xs text-[var(--fyxvo-text-muted)]">curl</span>
+                <CopyButton value={standardRequest} label="Copy" />
+              </div>
+              <pre className="overflow-x-auto p-4 text-xs leading-6 text-[var(--fyxvo-text-soft)]">
+                <code>{standardRequest}</code>
+              </pre>
             </div>
           </CardContent>
         </Card>
 
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>
-            <CardTitle>Use priority only when it helps</CardTitle>
+            <CardTitle>Priority relay request</CardTitle>
             <CardDescription>
-              Priority mode is separate on purpose. It carries different routing and pricing logic, so teams should opt in deliberately.
+              Priority mode carries different routing and pricing. Opt in deliberately.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <pre className="overflow-x-auto rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4 text-xs leading-6 text-[var(--fyxvo-text-soft)]">
-              <code>{priorityRequest}</code>
-            </pre>
-            <div className="flex flex-wrap gap-3">
-              <CopyButton value={priorityRequest} label="Copy priority request" />
-              <CopyButton value={`${webEnv.gatewayBaseUrl}/priority`} label="Copy priority endpoint" />
+            <div className="overflow-hidden rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)]">
+              <div className="flex items-center justify-between border-b border-[var(--fyxvo-border)] px-4 py-2">
+                <span className="text-xs text-[var(--fyxvo-text-muted)]">curl</span>
+                <CopyButton value={priorityRequest} label="Copy" />
+              </div>
+              <pre className="overflow-x-auto p-4 text-xs leading-6 text-[var(--fyxvo-text-soft)]">
+                <code>{priorityRequest}</code>
+              </pre>
             </div>
-            <Notice tone="neutral" title="Need help choosing the right key split?">
-              Use the pricing and contact paths when the team needs a cleaner boundary between standard traffic, priority relay traffic, and analytics-only access.
-            </Notice>
             <Notice tone="warning" title="Priority scope is intentionally explicit">
-              A priority key should still include <code>rpc:request</code>. That keeps the key capable of normal relay traffic while making the priority permission visible during audits and support reviews.
+              A priority key should still include <code>rpc:request</code>. That keeps the key
+              capable of normal relay traffic while making the priority permission visible during
+              audits.
             </Notice>
           </CardContent>
         </Card>
       </section>
 
       <Modal
-        open={open}
-        onClose={() => setOpen(false)}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
         title="Generate an API key"
         description="Pick a clear label and only the scopes this client truly needs."
         footer={
           <div className="flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={() => setOpen(false)}>
-              Close
+            <Button variant="secondary" onClick={() => setCreateOpen(false)}>
+              Cancel
             </Button>
             <Button
               onClick={async () => {
                 await portal.createApiKey({
                   label,
-                  scopes: scopes.split(",").map((scope) => scope.trim()).filter(Boolean),
-                  ...(expiresAt ? { expiresAt } : {})
+                  scopes: scopes
+                    .split(",")
+                    .map((scope) => scope.trim())
+                    .filter(Boolean),
+                  ...(expiresAt ? { expiresAt } : {}),
                 });
-                setOpen(false);
+                setCreateOpen(false);
               }}
             >
               Generate
@@ -232,7 +293,7 @@ export default function ApiKeysPage() {
           <Input label="Label" value={label} onChange={(event) => setLabel(event.target.value)} />
           <Input
             label="Scopes"
-            hint="Comma-separated scopes such as project:read, rpc:request, priority:relay. Priority keys must also include rpc:request."
+            hint="Comma-separated: project:read, rpc:request, priority:relay. Priority keys must include rpc:request."
             value={scopes}
             onChange={(event) => setScopes(event.target.value)}
           />
@@ -243,6 +304,39 @@ export default function ApiKeysPage() {
             onChange={(event) => setExpiresAt(event.target.value)}
           />
         </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(revokeKey)}
+        onClose={() => setRevokeKey(null)}
+        title="Revoke API key"
+        description="This action cannot be undone. Any requests using this key will fail immediately."
+        footer={
+          <div className="flex flex-wrap gap-3">
+            <Button variant="secondary" onClick={() => setRevokeKey(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (revokeKey) {
+                  await portal.revokeApiKey(revokeKey.id);
+                  setRevokeKey(null);
+                }
+              }}
+            >
+              Revoke key
+            </Button>
+          </div>
+        }
+      >
+        {revokeKey ? (
+          <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+            <p className="font-medium text-[var(--fyxvo-text)]">{revokeKey.label}</p>
+            <p className="mt-1 font-mono text-xs text-[var(--fyxvo-text-muted)]">
+              {revokeKey.prefix}
+            </p>
+          </div>
+        ) : null}
       </Modal>
     </div>
   );

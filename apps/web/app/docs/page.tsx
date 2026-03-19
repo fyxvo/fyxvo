@@ -129,7 +129,7 @@ console.log(response);`;
 
       <section className="grid gap-6 lg:grid-cols-3">
         {docsSections.map((section, index) => (
-          <Card key={section.title} className="fyxvo-surface border-white/5">
+          <Card key={section.title} className="fyxvo-surface border-[color:var(--fyxvo-border)]">
             <CardHeader>
               <div className="text-xs uppercase tracking-[0.18em] text-brand-300">
                 Section {index + 1}
@@ -193,7 +193,7 @@ console.log(response);`;
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <Card className="fyxvo-surface border-white/5">
+        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>
             <CardTitle>Core endpoints</CardTitle>
             <CardDescription>
@@ -203,13 +203,13 @@ console.log(response);`;
           </CardHeader>
           <CardContent className="space-y-4">
             {endpoints.map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+              <div key={label} className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                    <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
                       {label}
                     </div>
-                    <div className="mt-2 break-all text-sm font-medium text-white">{value}</div>
+                    <div className="mt-2 break-all text-sm font-medium text-[var(--fyxvo-text)]">{value}</div>
                   </div>
                   <CopyButton value={value} className="self-start sm:shrink-0" />
                 </div>
