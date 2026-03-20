@@ -792,7 +792,9 @@ export async function buildApiApp(input: {
     return { referralCode };
   });
 
-  app.post("/v1/referral/click/:code", async (request, reply) => {
+  app.post("/v1/referral/click/:code", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } }
+  }, async (request, reply) => {
     const { code } = request.params as { code: string };
     if (!code || !/^[a-z0-9]{8}$/.test(code)) {
       return reply.status(400).send({ error: "Invalid referral code" });
@@ -2255,6 +2257,36 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
     return reply.status(204).send();
   });
 
+  // ── What's New ────────────────────────────────────────────────────────────
+
+  app.get("/v1/whats-new", async (request) => {
+    const user = requireUser(request);
+    const item = await input.repository.getWhatsNew(user.id);
+    return { item };
+  });
+
+  app.post("/v1/whats-new/dismiss", async (request, reply) => {
+    const user = requireUser(request);
+    const { version } = z.object({ version: z.string().min(1) }).parse(request.body);
+    await input.repository.dismissWhatsNew(user.id, version);
+    return reply.send({ success: true });
+  });
+
+  app.post("/v1/admin/whats-new", async (request, reply) => {
+    const user = requireUser(request);
+    if (user.role !== "ADMIN" && user.role !== "OWNER") throw new HttpError(403, "forbidden", "Admin access required.");
+    const body = z.object({
+      title: z.string().min(1).max(200),
+      description: z.string().min(1).max(2000),
+      version: z.string().min(1),
+    }).parse(request.body);
+    // Deactivate old entries and create new one
+    const db = (input.repository as unknown as { prisma: { whatsNew: { updateMany: (args: unknown) => Promise<unknown>; create: (args: unknown) => Promise<unknown> } } }).prisma;
+    await db.whatsNew.updateMany({ where: { active: true }, data: { active: false } });
+    await db.whatsNew.create({ data: { title: body.title, description: body.description, version: body.version, active: true } });
+    return reply.status(201).send({ success: true });
+  });
+
   // ── Enterprise interest ───────────────────────────────────────────────────
 
   const enterpriseInterestSchema = z.object({
@@ -2272,7 +2304,9 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
 
   // ── SVG Badge ─────────────────────────────────────────────────────────────
 
-  app.get("/badge/project/:publicSlug", async (request, reply) => {
+  app.get("/badge/project/:publicSlug", {
+    config: { rateLimit: { max: 120, timeWindow: "1 minute" } }
+  }, async (request, reply) => {
     const { publicSlug } = z.object({ publicSlug: z.string() }).parse(request.params);
     const project = await input.repository.findPublicProject(publicSlug);
 

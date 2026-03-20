@@ -950,6 +950,8 @@ class MemoryApiRepository implements ApiRepository {
   async listActivityLog(_projectId: string, _limit?: number) { return []; }
   async getActiveAnnouncement() { return null; }
   async upsertAnnouncement(_input: { message: string; severity: string }): Promise<void> {}
+  async getWhatsNew(_userId: string) { return null; }
+  async dismissWhatsNew(_userId: string, _version: string): Promise<void> {}
 }
 
 async function createTestApp(options: { rateLimitMax?: number } = {}) {

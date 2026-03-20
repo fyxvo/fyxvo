@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { Suspense, useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Notice } from "@fyxvo/ui";
 import { PageHeader } from "../../components/page-header";
@@ -249,7 +249,7 @@ function formatResponse(raw: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function PlaygroundPage() {
+function PlaygroundContent() {
   const portal = usePortal();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -752,5 +752,13 @@ export default function PlaygroundPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function PlaygroundPage() {
+  return (
+    <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-[var(--fyxvo-panel-soft)]" />}>
+      <PlaygroundContent />
+    </Suspense>
   );
 }

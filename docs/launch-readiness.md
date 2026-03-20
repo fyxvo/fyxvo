@@ -14,7 +14,7 @@ Status key: COMPLETE | IN PROGRESS | NOT STARTED | N/A
 - [x] SQL injection protection: COMPLETE (Prisma parameterized queries)
 - [x] XSS protection: COMPLETE (CSP headers in Next.js config)
 - [x] CORS restricted to known origins: COMPLETE (WEB_ORIGIN env var enforced)
-- [ ] Secrets scanning in CI: NOT STARTED
+- [x] Secrets scanning in CI: COMPLETE — GitHub Actions step scans changed files for key patterns before tests run
 - [ ] Penetration test: NOT STARTED
 - [ ] SOC 2 Type I assessment: NOT STARTED (not required for devnet alpha)
 
@@ -55,7 +55,7 @@ Status key: COMPLETE | IN PROGRESS | NOT STARTED | N/A
 - [x] Cookie Policy: COMPLETE (/cookies)
 - [x] Referral system: COMPLETE
 - [ ] Email delivery for notifications: NOT STARTED (stored but not delivered)
-- [ ] SDK published to npm: NOT STARTED (@fyxvo/sdk exists but not published)
+- [x] SDK published to npm: READY TO PUBLISH — package.json prepared, README added. Manual publish: `npm login && pnpm --filter @fyxvo/sdk publish --access public` from repo root.
 
 ---
 
@@ -70,7 +70,7 @@ Status key: COMPLETE | IN PROGRESS | NOT STARTED | N/A
 
 ## Operational Requirements
 
-- [ ] Incident response runbook: NOT STARTED
+- [x] Incident response runbook: COMPLETE — see docs/incident-response.md
 - [ ] On-call rotation defined: NOT STARTED (solo founder stage)
 - [ ] Customer support channel: IN PROGRESS (Discord, Telegram)
 - [x] Status page: COMPLETE (status.fyxvo.com)

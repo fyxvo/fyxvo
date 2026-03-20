@@ -52,6 +52,27 @@ jobs:
       - name: Verify lockfile install
         run: pnpm ci:install
 
+      - name: Secrets scan
+        run: |
+          # Scan for potential secrets
+          found=0
+
+          # Check for private key patterns
+          if git diff --name-only HEAD~1..HEAD 2>/dev/null | xargs -I{} grep -lE "(PRIVATE_KEY|SECRET_KEY|MNEMONIC)\s*=\s*['\"][a-zA-Z0-9+/]{40,}['\"]" {} 2>/dev/null | grep -v ".env.example" | grep -v "test/"; then
+            echo "::error::Potential private key found in committed files"
+            found=1
+          fi
+
+          # Check for long base58 strings that could be wallet keys (longer than 80 chars)
+          if git diff --name-only HEAD~1..HEAD 2>/dev/null | xargs -I{} grep -lE "[1-9A-HJ-NP-Za-km-z]{80,}" {} 2>/dev/null | grep -v ".env.example" | grep -v "test/" | grep -v ".md"; then
+            echo "::warning::Long base58-like string found — verify this is not a private key"
+          fi
+
+          if [ $found -eq 1 ]; then
+            exit 1
+          fi
+          echo "Secrets scan passed"
+
       - name: Lint
         run: pnpm lint
 

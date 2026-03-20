@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { AppFrame } from "../components/app-frame";
 import { CookieNotice } from "../components/cookie-notice";
+import { FeedbackWidget } from "../components/feedback-widget";
 import { NavProgress } from "../components/nav-progress";
 import { PortalProvider } from "../components/portal-provider";
 import { ServiceWorkerRegistration } from "../components/service-worker-registration";
@@ -90,6 +91,9 @@ export default function RootLayout({
               <AppFrame>{children}</AppFrame>
               <CookieNotice />
               <ServiceWorkerRegistration />
+              <Suspense fallback={null}>
+                <FeedbackWidget />
+              </Suspense>
             </PortalProvider>
           </SolanaProvider>
         </ThemeProvider>

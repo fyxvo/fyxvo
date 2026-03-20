@@ -515,6 +515,14 @@ export interface SystemAnnouncementItem {
   readonly createdAt: string;
 }
 
+export interface WhatsNewItem {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly version: string;
+  readonly publishedAt: string;
+}
+
 export interface ProjectMemberItem {
   readonly id: string;
   readonly projectId: string;
@@ -609,6 +617,8 @@ export interface ApiRepository {
   listActivityLog(projectId: string, limit?: number): Promise<ActivityLogItem[]>;
   getActiveAnnouncement(): Promise<SystemAnnouncementItem | null>;
   upsertAnnouncement(input: { message: string; severity: string }): Promise<void>;
+  getWhatsNew(userId: string): Promise<WhatsNewItem | null>;
+  dismissWhatsNew(userId: string, version: string): Promise<void>;
 }
 
 export interface ProjectCreationPreparation {

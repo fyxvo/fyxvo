@@ -1,7 +1,7 @@
 {
   "name": "@fyxvo/sdk",
-  "private": true,
   "version": "0.1.0",
+  "description": "Official TypeScript SDK for the Fyxvo Solana devnet RPC relay gateway",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,10 +11,39 @@
       "default": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "pnpm run build",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
+  },
+  "keywords": [
+    "solana",
+    "rpc",
+    "relay",
+    "gateway",
+    "jsonrpc",
+    "devnet",
+    "fyxvo",
+    "web3"
+  ],
+  "author": "Fyxvo <hello@fyxvo.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fyxvo/fyxvo.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://www.fyxvo.com/docs",
+  "bugs": {
+    "url": "https://github.com/fyxvo/fyxvo/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

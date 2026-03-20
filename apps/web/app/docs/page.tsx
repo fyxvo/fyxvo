@@ -20,6 +20,7 @@ const NAV_SECTIONS = [
   { id: "api-explorer", label: "API Explorer", keywords: "try it interactive request curl live test endpoint" },
   { id: "webhooks", label: "Webhooks", keywords: "webhook http callback post event funding apikey hmac signature" },
   { id: "team-collaboration", label: "Team Collaboration", keywords: "team member invite wallet collaboration owner role" },
+  { id: "playground", label: "Playground", keywords: "playground rpc methods test compare mode schema panel share url examples" },
   { id: "public-profiles", label: "Public Project Pages", keywords: "public profile page slug badge readme status latency" },
   { id: "sdk-reference", label: "SDK Reference", keywords: "sdk library reference types api endpoint paths" },
   { id: "rate-limits", label: "Rate Limits", keywords: "rate limit 429 throttle bandwidth quota scope" },
@@ -859,6 +860,28 @@ if (req.headers['x-fyxvo-signature'] !== expected) return res.status(401).end();
                 label="README badge markdown"
                 code={`[![Fyxvo Status](https://api.fyxvo.com/badge/project/YOUR_SLUG)](https://www.fyxvo.com/p/YOUR_SLUG)`}
               />
+            </div>
+          </section>
+
+          {/* ── Playground ────────────────────────────────────── */}
+          <section id="playground" className="scroll-mt-20">
+            <h2 className="mb-4 text-xl font-semibold text-[var(--fyxvo-text)]">Playground</h2>
+            <p className="mb-4 text-sm leading-6 text-[var(--fyxvo-text-muted)]">
+              The <a href="/playground" className="text-[var(--fyxvo-brand)] underline">API Playground</a> lets you send live JSON-RPC requests to the Fyxvo gateway and inspect responses without writing any code.
+            </p>
+            <div className="space-y-3">
+              <div className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                <h3 className="mb-2 text-sm font-semibold text-[var(--fyxvo-text)]">Compare Mode</h3>
+                <p className="text-xs leading-5 text-[var(--fyxvo-text-muted)]">Toggle Compare in the request builder to run the same request on both the standard and priority paths simultaneously. The priority response badge turns green when it is faster.</p>
+              </div>
+              <div className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                <h3 className="mb-2 text-sm font-semibold text-[var(--fyxvo-text)]">Schema Panel</h3>
+                <p className="text-xs leading-5 text-[var(--fyxvo-text-muted)]">Click Schema next to any method to see the expected response shape — field names, types, and descriptions — before you send the request.</p>
+              </div>
+              <div className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                <h3 className="mb-2 text-sm font-semibold text-[var(--fyxvo-text)]">Shareable URLs</h3>
+                <p className="text-xs leading-5 text-[var(--fyxvo-text-muted)]">Click Share to encode the current method and parameters into the URL. Send the link to a colleague and they will land on the same request configuration.</p>
+              </div>
             </div>
           </section>
 

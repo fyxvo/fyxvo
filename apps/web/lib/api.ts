@@ -571,6 +571,14 @@ export async function getActiveAnnouncement() {
   return requestApi<{ announcement: { id: string; message: string; severity: string; active: boolean; createdAt: string } | null }>("/v1/announcements/active");
 }
 
+export async function getWhatsNew(token: string) {
+  return requestApi<{ item: { id: string; title: string; description: string; version: string; publishedAt: string } | null }>("/v1/whats-new", undefined, token);
+}
+
+export async function dismissWhatsNew(version: string, token: string) {
+  return requestApi<{ success: boolean }>("/v1/whats-new/dismiss", { method: "POST", body: JSON.stringify({ version }) }, token);
+}
+
 export function isPortalApiError(error: unknown): error is PortalApiError {
   return error instanceof PortalApiError;
 }

@@ -7,7 +7,13 @@ _Last updated: 2026-03-20_
 ## X / Twitter (280 chars each)
 
 **Thread opener:**
-> Fyxvo is live on Solana devnet. Managed RPC relay, wallet auth, project analytics, and a priority path for time-sensitive transactions. Private alpha is open — connect your wallet and send your first request today. 🔗 fyxvo.com
+> Fyxvo is live on Solana devnet.
+>
+> Wallet-authenticated RPC relay with funded project credits, scoped API keys, priority routing, and live analytics.
+>
+> No config files. Connect wallet → fund project → send requests.
+>
+> Start here → www.fyxvo.com
 
 **Feature thread — Auth:**
 > Fyxvo uses wallet-signed JWTs instead of email/password. Connect Phantom, Solflare, or Backpack, sign a challenge, and you're in. No registration form. Your wallet is your identity.

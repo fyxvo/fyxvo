@@ -39,7 +39,8 @@ import type {
   UpdateProjectInput,
   WebhookItem,
   IncidentItem,
-  ReferralStats
+  ReferralStats,
+  WhatsNewItem
 } from "./types.js";
 
 type PrismaProject = PrismaNamespace.ProjectGetPayload<{
@@ -1499,6 +1500,25 @@ export class PrismaApiRepository implements ApiRepository {
     const db = this.prisma as any;
     await db.systemAnnouncement.updateMany({ where: { active: true }, data: { active: false } });
     await db.systemAnnouncement.create({ data: { message: input.message, severity: input.severity, active: true } });
+  }
+
+  async getWhatsNew(userId: string): Promise<WhatsNewItem | null> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const user = await db.user.findUnique({ where: { id: userId }, select: { whatsNewDismissedVersion: true } });
+    const latest = await db.whatsNew.findFirst({
+      where: { active: true },
+      orderBy: { publishedAt: "desc" },
+      select: { id: true, title: true, description: true, version: true, publishedAt: true },
+    }) as { id: string; title: string; description: string; version: string; publishedAt: Date } | null;
+    if (!latest) return null;
+    if ((user as { whatsNewDismissedVersion?: string } | null)?.whatsNewDismissedVersion === latest.version) return null;
+    return { id: latest.id, title: latest.title, description: latest.description, version: latest.version, publishedAt: latest.publishedAt.toISOString() };
+  }
+
+  async dismissWhatsNew(userId: string, version: string): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (this.prisma as any).user.update({ where: { id: userId }, data: { whatsNewDismissedVersion: version } });
   }
 }
 

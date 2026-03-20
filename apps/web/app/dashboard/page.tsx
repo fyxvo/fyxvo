@@ -38,7 +38,7 @@ import { GatewayHealthCard } from "../../components/gateway-health";
 import { OnboardingChecklist } from "../../components/onboarding-checklist";
 import type { AdminOverview, NetworkStats, PortalProject } from "../../lib/types";
 import { webEnv } from "../../lib/env";
-import { getNetworkStats, getActiveAnnouncement } from "../../lib/api";
+import { getNetworkStats, getActiveAnnouncement, getWhatsNew, dismissWhatsNew } from "../../lib/api";
 
 const projectColumns: readonly TableColumn<PortalProject>[] = [
   {
@@ -324,6 +324,7 @@ export default function DashboardPage() {
   const [networkStats, setNetworkStats] = useState<NetworkStats | null>(null);
   const [announcement, setAnnouncement] = useState<{ id: string; message: string; severity: string } | null>(null);
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
+  const [whatsNew, setWhatsNew] = useState<{ id: string; title: string; description: string; version: string } | null>(null);
 
   useEffect(() => {
     void getNetworkStats().then(setNetworkStats).catch(() => {});
@@ -334,6 +335,13 @@ export default function DashboardPage() {
       if (data.announcement) setAnnouncement(data.announcement);
     }).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!portal.token || portal.walletPhase !== "authenticated") return;
+    getWhatsNew(portal.token).then((data) => {
+      if (data.item) setWhatsNew(data.item);
+    }).catch(() => undefined);
+  }, [portal.token, portal.walletPhase]);
 
   function handleCreateClose() {
     setCreateOpen(false);
@@ -469,6 +477,26 @@ export default function DashboardPage() {
           <p className="text-sm">{announcement.message}</p>
           <button
             onClick={() => setAnnouncementDismissed(true)}
+            className="shrink-0 text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)] transition-colors"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {whatsNew && (
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-brand-500/30 bg-brand-500/10 px-4 py-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-500">What&apos;s new in {whatsNew.version}</p>
+            <p className="mt-0.5 text-sm font-medium text-[var(--fyxvo-text)]">{whatsNew.title}</p>
+            <p className="text-xs text-[var(--fyxvo-text-muted)]">{whatsNew.description}</p>
+          </div>
+          <button
+            onClick={() => {
+              setWhatsNew(null);
+              if (portal.token) void dismissWhatsNew(whatsNew.version, portal.token);
+            }}
             className="shrink-0 text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)] transition-colors"
             aria-label="Dismiss"
           >
