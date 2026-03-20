@@ -408,3 +408,14 @@ model OperatorRewardSnapshot {
   @@unique([operatorId, projectId, windowStart, windowEnd])
   @@index([projectId, windowEnd])
 }
+
+model ServiceHealthSnapshot {
+  id             String   @id @default(uuid()) @db.Uuid
+  serviceName    String
+  status         String
+  responseTimeMs Int?
+  errorMessage   String?
+  checkedAt      DateTime @default(now())
+
+  @@index([serviceName, checkedAt])
+}

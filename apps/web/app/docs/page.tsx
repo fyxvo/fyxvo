@@ -6,6 +6,7 @@ import { CopyButton } from "../../components/copy-button";
 import { PageHeader } from "../../components/page-header";
 import { SocialLinkButtons } from "../../components/social-links";
 import { webEnv } from "../../lib/env";
+import { PRICING_LAMPORTS } from "@fyxvo/config";
 
 const NAV_SECTIONS = [
   { id: "introduction", label: "Introduction", keywords: "overview what is fyxvo devnet rpc relay product" },
@@ -432,6 +433,78 @@ open ${webEnv.statusPageUrl}`;
                 </div>
               ))}
             </div>
+          </section>
+
+          {/* Five Minute Quickstart */}
+          <section id="five-minute-quickstart" className="rounded-[1.5rem] border border-brand-500/20 bg-brand-500/5 p-6 space-y-5">
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] text-brand-600 dark:text-brand-300 mb-1">Complete working example</div>
+              <h3 className="text-xl font-semibold text-[var(--fyxvo-text)]">Five Minute Quickstart</h3>
+              <p className="mt-2 text-sm text-[var(--fyxvo-text-muted)]">
+                From zero to a live devnet relay request using curl only. No SDK required.
+              </p>
+            </div>
+            <CodeBlock
+              label="Step 1 — Request an auth challenge"
+              code={`curl -s -X POST ${webEnv.apiBaseUrl}/v1/auth/challenge \\
+  -H "content-type: application/json" \\
+  -d '{"walletAddress":"YOUR_WALLET_ADDRESS_BASE58"}'
+
+# Save the nonce and message from the response
+# { "walletAddress": "...", "nonce": "abc123", "message": "Fyxvo Authentication\\nWallet: ...\\nNonce: abc123\\n..." }`}
+            />
+            <CodeBlock
+              label="Step 2 — Sign the message with your wallet CLI (e.g. solana-keygen)"
+              code={`# Sign the exact message string returned from the challenge endpoint.
+# Using the Solana CLI (base58 output):
+echo -n "Fyxvo Authentication\\nWallet: YOUR_WALLET\\nNonce: abc123\\n..." | \\
+  solana sign-offchain-message - --keypair ~/.config/solana/id.json
+
+# Or use @solana/wallet-adapter-base in the browser:
+# const sig = await wallet.signMessage(Buffer.from(message));
+# const sigBase58 = bs58.encode(sig);`}
+            />
+            <CodeBlock
+              label="Step 3 — Verify and get your JWT"
+              code={`curl -s -X POST ${webEnv.apiBaseUrl}/v1/auth/verify \\
+  -H "content-type: application/json" \\
+  -d '{
+    "walletAddress": "YOUR_WALLET_ADDRESS_BASE58",
+    "message": "THE_EXACT_CHALLENGE_MESSAGE",
+    "signature": "YOUR_BASE58_SIGNATURE"
+  }'
+
+# { "token": "eyJhbGci...", "user": { "walletAddress": "...", "role": "MEMBER" } }
+export JWT="eyJhbGci..."`}
+            />
+            <CodeBlock
+              label="Step 4 — Issue an API key (after creating and funding a project in the dashboard)"
+              code={`curl -s -X POST ${webEnv.apiBaseUrl}/v1/projects/YOUR_PROJECT_ID/api-keys \\
+  -H "authorization: Bearer $JWT" \\
+  -H "content-type: application/json" \\
+  -d '{"label":"my-key","scopes":["project:read","rpc:request"]}'
+
+# { "item": { "id": "...", "prefix": "fyxvo_live_...", ... }, "plainTextKey": "fyxvo_live_...secret" }
+export API_KEY="fyxvo_live_...secret"`}
+            />
+            <CodeBlock
+              label="Step 5 — Send your first relay request"
+              code={`curl -s -X POST ${webEnv.gatewayBaseUrl}/rpc \\
+  -H "content-type: application/json" \\
+  -H "x-api-key: $API_KEY" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}'
+
+# { "jsonrpc": "2.0", "result": "ok", "id": 1 }
+
+# Priority relay (requires priority:relay scope):
+curl -s -X POST ${webEnv.gatewayBaseUrl}/priority \\
+  -H "content-type: application/json" \\
+  -H "x-api-key: $API_KEY" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"getSlot"}'`}
+            />
+            <Notice tone="success" title="That's it">
+              Your first request is now in the relay logs. Check the Analytics page to see it appear within seconds. Fund more SOL to increase capacity — {PRICING_LAMPORTS.standard.toLocaleString()} lamports per standard request, {PRICING_LAMPORTS.computeHeavy.toLocaleString()} per compute-heavy, {PRICING_LAMPORTS.priority.toLocaleString()} per priority.
+            </Notice>
           </section>
 
           {/* ── Authentication ───────────────────────────────────── */}

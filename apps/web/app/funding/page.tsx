@@ -21,16 +21,24 @@ import { getFundingHistory } from "../../lib/api";
 import { webEnv } from "../../lib/env";
 import { formatRelativeDate, formatSol } from "../../lib/format";
 import type { FundingHistoryItem } from "../../lib/types";
+import { PRICING_LAMPORTS } from "@fyxvo/config";
 
-// Standard relay costs roughly 0.000005 SOL per request (5000 lamports)
-const SOL_PER_REQUEST_LAMPORTS = 5_000n;
+const STD_PRICE_LAMPORTS = BigInt(PRICING_LAMPORTS.standard);
+const CH_PRICE_LAMPORTS = BigInt(PRICING_LAMPORTS.computeHeavy);
+const PRIORITY_PRICE_LAMPORTS = BigInt(PRICING_LAMPORTS.priority);
 
-function estimateRequests(lamports: bigint): string {
-  if (lamports <= 0n) return "0";
-  const requests = lamports / SOL_PER_REQUEST_LAMPORTS;
-  if (requests > 1_000_000n) return `~${(Number(requests) / 1_000_000).toFixed(1)}M`;
-  if (requests > 1_000n) return `~${(Number(requests) / 1_000).toFixed(0)}k`;
-  return `~${requests.toString()}`;
+function estimateRequests(lamports: bigint): { standard: string; computeHeavy: string; priority: string } {
+  function fmt(n: bigint): string {
+    if (n > 1_000_000n) return `~${(Number(n) / 1_000_000).toFixed(1)}M`;
+    if (n > 1_000n) return `~${(Number(n) / 1_000).toFixed(0)}k`;
+    return `~${n.toString()}`;
+  }
+  if (lamports <= 0n) return { standard: "0", computeHeavy: "0", priority: "0" };
+  return {
+    standard: fmt(lamports / STD_PRICE_LAMPORTS),
+    computeHeavy: fmt(lamports / CH_PRICE_LAMPORTS),
+    priority: fmt(lamports / PRIORITY_PRICE_LAMPORTS)
+  };
 }
 
 export default function FundingPage() {
@@ -137,7 +145,10 @@ export default function FundingPage() {
               onChange={(event) => setAmount(event.target.value)}
               hint={
                 asset === "SOL"
-                  ? `1 SOL = 1,000,000,000 lamports · ${estimateRequests(amountLamports)} relay requests at ~5000 lamports/req`
+                  ? (() => {
+                      const est = estimateRequests(amountLamports);
+                      return `1 SOL = 1,000,000,000 lam · ${est.standard} standard · ${est.computeHeavy} compute-heavy · ${est.priority} priority requests`;
+                    })()
                   : "USDC uses 6 decimals on devnet"
               }
             />

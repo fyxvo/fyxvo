@@ -1,20 +1,35 @@
+import { COMPUTE_HEAVY_METHODS, WRITE_METHODS } from "@fyxvo/config";
 import type { GatewayEnv } from "@fyxvo/config";
-import type { FundingDecision, JsonRpcPayload, PricingDecision, ProjectFundingState, ProjectSpendState, RoutingMode } from "./types.js";
+import type { FundingDecision, JsonRpcPayload, JsonRpcRequest, PricingDecision, ProjectFundingState, ProjectSpendState, RoutingMode } from "./types.js";
 
-const WRITE_METHODS = new Set([
-  "sendTransaction",
-  "sendRawTransaction",
-  "simulateTransaction",
-  "requestAirdrop"
-]);
+type MethodTier = "standard" | "compute_heavy" | "write";
 
-function normalizePayload(payload: JsonRpcPayload): readonly { method: string }[] {
-  const requests = Array.isArray(payload) ? payload : [payload];
-  return requests;
+function classifyMethod(method: string): MethodTier {
+  if (COMPUTE_HEAVY_METHODS.has(method)) return "compute_heavy";
+  if (WRITE_METHODS.has(method)) return "write";
+  return "standard";
 }
 
-function methodMultiplier(method: string, env: GatewayEnv): bigint {
-  return WRITE_METHODS.has(method) ? BigInt(env.GATEWAY_WRITE_METHOD_MULTIPLIER) : 1n;
+function methodPrice(method: string, mode: RoutingMode, env: GatewayEnv): bigint {
+  // Priority relay always charges priority rate regardless of method
+  if (mode === "priority") {
+    return BigInt(env.GATEWAY_PRIORITY_PRICE_LAMPORTS);
+  }
+
+  const tier = classifyMethod(method);
+  switch (tier) {
+    case "compute_heavy":
+      return BigInt(env.GATEWAY_COMPUTE_HEAVY_PRICE_LAMPORTS);
+    case "write":
+      // Write methods use standard base × write multiplier
+      return BigInt(env.GATEWAY_STANDARD_PRICE_LAMPORTS) * BigInt(env.GATEWAY_WRITE_METHOD_MULTIPLIER);
+    default:
+      return BigInt(env.GATEWAY_STANDARD_PRICE_LAMPORTS);
+  }
+}
+
+function normalizePayload(payload: JsonRpcPayload): readonly JsonRpcRequest[] {
+  return Array.isArray(payload) ? payload : [payload as JsonRpcRequest];
 }
 
 export function calculateRequestPrice(
@@ -27,8 +42,9 @@ export function calculateRequestPrice(
     mode === "priority"
       ? BigInt(env.GATEWAY_PRIORITY_PRICE_LAMPORTS)
       : BigInt(env.GATEWAY_STANDARD_PRICE_LAMPORTS);
+
   const totalPrice = requests.reduce(
-    (total, request) => total + basePrice * methodMultiplier(request.method, env),
+    (total, request) => total + methodPrice(request.method, mode, env),
     0n
   );
 

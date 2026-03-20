@@ -445,6 +445,14 @@ export async function getProjectRateLimits(projectId: string, token: string) {
   return response;
 }
 
+export async function getNetworkStats() {
+  return requestApi<{ totalRequests: number; totalProjects: number; totalApiKeys: number; updatedAt: string }>("/v1/network/stats");
+}
+
+export async function getServiceHealthHistory() {
+  return requestApi<Record<string, Array<{ id: string; serviceName: string; status: string; responseTimeMs: number | null; errorMessage: string | null; checkedAt: string }>>>("/v1/network/service-health");
+}
+
 export function isPortalApiError(error: unknown): error is PortalApiError {
   return error instanceof PortalApiError;
 }

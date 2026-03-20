@@ -5,7 +5,8 @@ export const workerJobNames = {
   metricsAggregation: "metrics-aggregation",
   walletIndexing: "wallet-indexing",
   nodeHealthMonitoring: "node-health-monitoring",
-  rewardCalculation: "reward-calculation"
+  rewardCalculation: "reward-calculation",
+  serviceHealthCheck: "service-health-check"
 } as const;
 
 export type WorkerJobName = (typeof workerJobNames)[keyof typeof workerJobNames];
@@ -140,6 +141,12 @@ export interface WorkerRepository {
     readonly windowEnd: Date;
   }): Promise<RewardComputationInput[]>;
   upsertRewardSnapshot(input: RewardSnapshotInput): Promise<void>;
+  writeServiceHealthSnapshot(input: {
+    readonly serviceName: string;
+    readonly status: string;
+    readonly responseTimeMs?: number | null;
+    readonly errorMessage?: string | null;
+  }): Promise<void>;
 }
 
 export interface SignatureSummary {

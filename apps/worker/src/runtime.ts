@@ -6,6 +6,7 @@ import { processMetricsAggregation } from "./jobs/metrics.js";
 import { processNodeHealthMonitoring } from "./jobs/node-health.js";
 import { processRewardCalculation } from "./jobs/rewards.js";
 import { processWalletIndexing } from "./jobs/indexing.js";
+import { processServiceHealthCheck } from "./jobs/service-health.js";
 import { PrismaWorkerRepository } from "./repository.js";
 import { JsonRpcNodeProbeClient, RpcSolanaIndexerClient } from "./solana.js";
 import type {
@@ -80,6 +81,8 @@ async function runJob(
       return processNodeHealthMonitoring(dependencies);
     case workerJobNames.rewardCalculation:
       return processRewardCalculation(dependencies);
+    case workerJobNames.serviceHealthCheck:
+      return processServiceHealthCheck(dependencies);
   }
 }
 

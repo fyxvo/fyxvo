@@ -31,8 +31,11 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@prisma/client",
       "@stellar/stellar-sdk",
       "blake-hash",
+      "esbuild",
+      "prisma",
       "protobufjs",
       "tiny-secp256k1",
       "usb"

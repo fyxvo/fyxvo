@@ -4,16 +4,22 @@ import { CopyButton } from "../components/copy-button";
 import { SocialLinkButtons } from "../components/social-links";
 import { TrackedLinkButton } from "../components/tracked-link-button";
 import { getStatusSnapshot } from "../lib/server-status";
+import { getNetworkStats } from "../lib/api";
 import { formatDuration } from "../lib/format";
 import { liveDevnetState } from "../lib/live-state";
 
 export default async function HomePage() {
-  const status = await getStatusSnapshot();
+  const [status, networkStats] = await Promise.all([
+    getStatusSnapshot(),
+    getNetworkStats().catch(() => null)
+  ]);
   const apiOk = status.apiHealth.status === "ok";
   const gatewayOk = status.gatewayHealth.status === "ok";
   const protocolReady = Boolean(status.apiStatus.protocolReadiness?.ready);
   const gatewayLatency = status.gatewayStatus.metrics?.standard?.averageLatencyMs;
-  const totalRequests = status.gatewayStatus.metrics?.totals?.requests ?? 0;
+  const totalRequests = networkStats?.totalRequests ?? status.gatewayStatus.metrics?.totals?.requests ?? 0;
+  const totalProjects = networkStats?.totalProjects ?? 0;
+  const totalApiKeys = networkStats?.totalApiKeys ?? 0;
 
   const curlExample = `curl -X POST https://rpc.fyxvo.com/rpc \\
   -H "content-type: application/json" \\
@@ -132,7 +138,17 @@ export default async function HomePage() {
             ) : null}
             {totalRequests > 0 ? (
               <div className="text-sm text-[var(--fyxvo-text-muted)]">
-                {totalRequests.toLocaleString()} requests tracked
+                {totalRequests.toLocaleString()} requests served
+              </div>
+            ) : null}
+            {totalProjects > 0 ? (
+              <div className="text-sm text-[var(--fyxvo-text-muted)]">
+                {totalProjects.toLocaleString()} {totalProjects === 1 ? "project" : "projects"}
+              </div>
+            ) : null}
+            {totalApiKeys > 0 ? (
+              <div className="text-sm text-[var(--fyxvo-text-muted)]">
+                {totalApiKeys.toLocaleString()} API {totalApiKeys === 1 ? "key" : "keys"}
               </div>
             ) : null}
             <Link

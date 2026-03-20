@@ -10,6 +10,7 @@ import {
   Notice,
 } from "@fyxvo/ui";
 import { getStatusSnapshot } from "../../lib/server-status";
+import { getServiceHealthHistory } from "../../lib/api";
 import { webEnv } from "../../lib/env";
 import { formatDuration, shortenAddress } from "../../lib/format";
 import { liveDevnetState } from "../../lib/live-state";
@@ -33,7 +34,10 @@ function percentage(value?: number) {
 }
 
 export default async function StatusPage() {
-  const status = await getStatusSnapshot();
+  const [status, serviceHealth] = await Promise.all([
+    getStatusSnapshot(),
+    getServiceHealthHistory().catch(() => null)
+  ]);
   const readiness = status.apiStatus.protocolReadiness;
   const gatewayMetrics = status.gatewayStatus.metrics;
   const healthy =
@@ -216,6 +220,52 @@ export default async function StatusPage() {
           </CardContent>
         </Card>
       </section>
+
+      {/* Uptime timeline */}
+      {serviceHealth && Object.keys(serviceHealth).length > 0 ? (
+        <section>
+          <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+            <CardHeader>
+              <CardTitle>Uptime timeline</CardTitle>
+              <CardDescription>Last 48 health checks per service, newest right. Green = healthy, amber = degraded, red = unreachable.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {(["api", "gateway", "worker"] as const).map((svc) => {
+                const snapshots = serviceHealth[svc] ?? [];
+                if (snapshots.length === 0) return null;
+                const orderedOldestFirst = [...snapshots].reverse();
+                const uptimePct = snapshots.length > 0
+                  ? Math.round((snapshots.filter((s) => s.status === "healthy").length / snapshots.length) * 100)
+                  : 100;
+
+                return (
+                  <div key={svc} className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-[var(--fyxvo-text)] capitalize">{svc}</span>
+                      <span className="text-xs text-[var(--fyxvo-text-muted)]">{uptimePct}% uptime</span>
+                    </div>
+                    <div className="flex gap-0.5">
+                      {orderedOldestFirst.map((snapshot) => (
+                        <div
+                          key={snapshot.id}
+                          title={`${new Date(snapshot.checkedAt).toLocaleString()} — ${snapshot.status}${snapshot.responseTimeMs != null ? ` (${snapshot.responseTimeMs}ms)` : ""}`}
+                          className={`h-6 flex-1 rounded-sm ${
+                            snapshot.status === "healthy"
+                              ? "bg-emerald-500"
+                              : snapshot.status === "degraded"
+                                ? "bg-amber-400"
+                                : "bg-red-500"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </section>
+      ) : null}
 
       {/* Detailed service information */}
       <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">

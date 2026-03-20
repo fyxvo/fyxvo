@@ -513,6 +513,21 @@ export class PrismaWorkerRepository implements WorkerRepository {
       }
     });
   }
+  async writeServiceHealthSnapshot(input: {
+    readonly serviceName: string;
+    readonly status: string;
+    readonly responseTimeMs?: number | null;
+    readonly errorMessage?: string | null;
+  }): Promise<void> {
+    await this.prisma.serviceHealthSnapshot.create({
+      data: {
+        serviceName: input.serviceName,
+        status: input.status,
+        responseTimeMs: input.responseTimeMs ?? null,
+        errorMessage: input.errorMessage ?? null
+      }
+    });
+  }
 }
 
 export function deriveNodeStatus(input: {

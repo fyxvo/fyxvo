@@ -687,6 +687,38 @@ export async function buildApiApp(input: {
     };
   });
 
+  // In-memory caches for public network endpoints (per-instance; TTL resets on restart)
+  let networkStatsCache: { data: Awaited<ReturnType<typeof input.repository.getNetworkStats>>; expiresAt: number } | null = null;
+  let serviceHealthCache: { data: Awaited<ReturnType<typeof input.repository.getServiceHealthHistory>>; expiresAt: number } | null = null;
+  const NETWORK_STATS_TTL_MS = 30_000;
+  const SERVICE_HEALTH_TTL_MS = 60_000;
+
+  app.get("/v1/network/stats", async (_request, reply) => {
+    const now = Date.now();
+    if (!networkStatsCache || now >= networkStatsCache.expiresAt) {
+      networkStatsCache = {
+        data: await input.repository.getNetworkStats(),
+        expiresAt: now + NETWORK_STATS_TTL_MS
+      };
+    }
+
+    reply.header("cache-control", "public, max-age=30, stale-while-revalidate=60");
+    return networkStatsCache.data;
+  });
+
+  app.get("/v1/network/service-health", async (_request, reply) => {
+    const now = Date.now();
+    if (!serviceHealthCache || now >= serviceHealthCache.expiresAt) {
+      serviceHealthCache = {
+        data: await input.repository.getServiceHealthHistory(48),
+        expiresAt: now + SERVICE_HEALTH_TTL_MS
+      };
+    }
+
+    reply.header("cache-control", "public, max-age=60, stale-while-revalidate=120");
+    return serviceHealthCache.data;
+  });
+
   app.get("/v1/me", async (request) => {
     const user = requireUser(request);
     const projects = await input.repository.listProjects(user);

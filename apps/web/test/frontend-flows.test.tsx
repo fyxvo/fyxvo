@@ -24,6 +24,7 @@ const apiMocks = vi.hoisted(() => ({
   getAdminOverview: vi.fn(),
   getAdminStats: vi.fn(),
   getAnalyticsOverview: vi.fn(),
+  getFundingHistory: vi.fn(),
   getOnchainSnapshot: vi.fn(),
   getOperators: vi.fn(),
   getProjectAnalytics: vi.fn(),
@@ -80,6 +81,7 @@ vi.mock("../lib/api", () => ({
   getAdminOverview: apiMocks.getAdminOverview,
   getAdminStats: apiMocks.getAdminStats,
   getAnalyticsOverview: apiMocks.getAnalyticsOverview,
+  getFundingHistory: apiMocks.getFundingHistory,
   getOnchainSnapshot: apiMocks.getOnchainSnapshot,
   getOperators: apiMocks.getOperators,
   getProjectAnalytics: apiMocks.getProjectAnalytics,
@@ -221,6 +223,7 @@ beforeEach(() => {
   apiMocks.getAdminStats.mockResolvedValue(previewAdminStats);
   apiMocks.getOperators.mockResolvedValue(previewOperators);
   apiMocks.prepareFunding.mockResolvedValue(createFundingPreparation());
+  apiMocks.getFundingHistory.mockResolvedValue([]);
   apiMocks.createApiKey.mockResolvedValue(createApiKeyResult());
   apiMocks.revokeApiKey.mockResolvedValue(undefined);
   apiMocks.submitInterest.mockResolvedValue({

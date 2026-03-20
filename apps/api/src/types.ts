@@ -444,6 +444,24 @@ export interface FundingHistoryItem {
   readonly confirmedAt: string | null;
 }
 
+export interface NetworkStats {
+  readonly totalRequests: number;
+  readonly totalProjects: number;
+  readonly totalApiKeys: number;
+  readonly updatedAt: string;
+}
+
+export interface ServiceHealthEntry {
+  readonly id: string;
+  readonly serviceName: string;
+  readonly status: string;
+  readonly responseTimeMs: number | null;
+  readonly errorMessage: string | null;
+  readonly checkedAt: string;
+}
+
+export type ServiceHealthHistory = Record<string, ServiceHealthEntry[]>;
+
 export interface ApiRepository {
   findUserByWallet(walletAddress: string): Promise<AuthenticatedUser & { authNonce: string } | null>;
   findUserById(userId: string): Promise<AuthenticatedUser & { authNonce: string } | null>;
@@ -487,6 +505,8 @@ export interface ApiRepository {
   saveIdempotencyRecord(input: SaveIdempotencyInput): Promise<IdempotencyRecord>;
   recordRequestLog(input: RequestLogInput): Promise<void>;
   getFundingHistory(userId: string, projectIds: readonly string[]): Promise<FundingHistoryItem[]>;
+  getNetworkStats(): Promise<NetworkStats>;
+  getServiceHealthHistory(limitPerService: number): Promise<ServiceHealthHistory>;
 }
 
 export interface ProjectCreationPreparation {

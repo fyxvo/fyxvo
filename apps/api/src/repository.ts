@@ -22,12 +22,14 @@ import type {
   FundingRecordInput,
   IdempotencyLookup,
   MethodBreakdownItem,
+  NetworkStats,
   NotificationItem,
   OperatorSummary,
   ProjectAnalytics,
   ProjectWithOwner,
   RequestLogInput,
   SaveIdempotencyInput,
+  ServiceHealthHistory,
   UpdateProjectInput
 } from "./types.js";
 
@@ -1092,6 +1094,47 @@ export class PrismaApiRepository implements ApiRepository {
     await this.prisma.requestLog.create({
       data: input
     });
+  }
+
+  async getServiceHealthHistory(limitPerService: number): Promise<ServiceHealthHistory> {
+    const services = ["api", "gateway", "worker"];
+    const result: ServiceHealthHistory = {};
+
+    await Promise.all(
+      services.map(async (serviceName) => {
+        const rows = await this.prisma.serviceHealthSnapshot.findMany({
+          where: { serviceName },
+          orderBy: { checkedAt: "desc" },
+          take: limitPerService
+        });
+
+        result[serviceName] = rows.map((row) => ({
+          id: row.id,
+          serviceName: row.serviceName,
+          status: row.status,
+          responseTimeMs: row.responseTimeMs,
+          errorMessage: row.errorMessage,
+          checkedAt: row.checkedAt.toISOString()
+        }));
+      })
+    );
+
+    return result;
+  }
+
+  async getNetworkStats(): Promise<NetworkStats> {
+    const [totalRequests, totalProjects, totalApiKeys] = await Promise.all([
+      this.prisma.requestLog.count(),
+      this.prisma.project.count(),
+      this.prisma.apiKey.count()
+    ]);
+
+    return {
+      totalRequests,
+      totalProjects,
+      totalApiKeys,
+      updatedAt: new Date().toISOString()
+    };
   }
 
   async getFundingHistory(_userId: string, projectIds: readonly string[]): Promise<FundingHistoryItem[]> {
