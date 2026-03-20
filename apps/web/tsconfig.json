@@ -9,7 +9,12 @@
         "name": "next"
       }
     ],
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@fyxvo/config": ["../../packages/config/dist/index.js"],
+      "@fyxvo/sdk": ["../../packages/sdk/src/index.ts"],
+      "@fyxvo/ui": ["../../packages/ui/src/index.tsx"]
+    }
   },
   "include": ["next-env.d.ts", "app", "components", "lib", "test", ".next/types/**/*.ts", "middleware.ts", "next.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules"]
