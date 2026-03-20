@@ -232,3 +232,12 @@ export function SettingsIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function BeakerIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M9 3h6M9 3v7l-4 8a1 1 0 00.9 1.45h12.2A1 1 0 0023 18l-4-8V3" />
+      <path d="M9 3H7M15 3h2" />
+    </Icon>
+  );
+}

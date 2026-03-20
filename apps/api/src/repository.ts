@@ -59,6 +59,7 @@ function mapUser(user: {
   role: AuthenticatedUser["role"];
   status: AuthenticatedUser["status"];
   onboardingDismissed?: boolean;
+  createdAt?: Date;
 }) {
   return {
     id: user.id,
@@ -70,6 +71,7 @@ function mapUser(user: {
     role: user.role,
     status: user.status,
     onboardingDismissed: user.onboardingDismissed ?? false,
+    createdAt: user.createdAt ?? new Date(0),
   };
 }
 
@@ -235,7 +237,8 @@ export class PrismaApiRepository implements ApiRepository {
         ...(input.archivedAt !== undefined ? { archivedAt: input.archivedAt } : {}),
         ...(input.environment !== undefined ? { environment: input.environment } : {}),
         ...(input.starred !== undefined ? { starred: input.starred } : {}),
-        ...(input.notes !== undefined ? { notes: input.notes } : {})
+        ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        ...(input.githubUrl !== undefined ? { githubUrl: input.githubUrl } : {})
       },
       include: {
         owner: true,

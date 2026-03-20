@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
-import { Button } from "@fyxvo/ui";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { Button, Notice } from "@fyxvo/ui";
+import { WalletConnectButton } from "../../components/wallet-connect-button";
 import { PageHeader } from "../../components/page-header";
 import { usePortal } from "../../components/portal-provider";
 import { webEnv } from "../../lib/env";
@@ -76,17 +77,46 @@ function MessageContent({ content }: { content: string }) {
   );
 }
 
+const HISTORY_KEY = "fyxvo.assistant.history";
+
 export default function AssistantPage() {
   const portal = usePortal();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Persist/restore last 20 messages
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(HISTORY_KEY);
+      if (stored) setMessages(JSON.parse(stored) as Message[]);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(messages.slice(-20)));
+    } catch { /* ignore */ }
+  }, [messages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const clearConversation = useCallback(() => {
+    setMessages([]);
+    try { localStorage.removeItem(HISTORY_KEY); } catch { /* ignore */ }
+  }, []);
+
+  function copyMessage(content: string, idx: number) {
+    void navigator.clipboard.writeText(content);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  }
 
   const availableSolCredits = portal.onchainSnapshot.balances?.availableSolCredits;
   const projectContext = portal.selectedProject
@@ -192,14 +222,33 @@ export default function AssistantPage() {
     <div className="flex h-[calc(100vh-4rem)] flex-col space-y-0 -mt-8 -mx-4 sm:-mx-6 lg:-mx-8">
       {/* Header */}
       <div className="shrink-0 border-b border-[var(--fyxvo-border)] px-4 py-4 sm:px-6 lg:px-8">
-        <PageHeader
-          eyebrow="AI Assistant"
-          title="Fyxvo Developer Assistant"
-          description="Ask anything about Solana development or using Fyxvo. Powered by Claude."
-        />
-        <p className="mt-2 text-xs text-[var(--fyxvo-text-muted)]">
-          AI responses may not always be accurate. Test all code before using in production.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <PageHeader
+              eyebrow="AI Assistant · Claude"
+              title="Fyxvo Developer Assistant"
+              description="Ask anything about Solana development or using Fyxvo. Powered by Claude."
+            />
+            <p className="mt-2 text-xs text-[var(--fyxvo-text-muted)]">
+              AI responses may not always be accurate. Test all code before using in production.
+            </p>
+          </div>
+          {messages.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearConversation} className="shrink-0 text-xs text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)]">
+              Clear
+            </Button>
+          )}
+        </div>
+        {!isAuthenticated && (
+          <div className="mt-4">
+            <Notice tone="neutral" title="Connect your wallet to use the AI assistant">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span>You need an active wallet session to send messages.</span>
+                <WalletConnectButton compact />
+              </div>
+            </Notice>
+          </div>
+        )}
       </div>
 
       {/* Message thread */}
@@ -238,29 +287,39 @@ export default function AssistantPage() {
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
             {messages.map((message, i) => (
-              <div key={i} className={message.role === "user" ? "flex justify-end" : "flex justify-start"}>
-                <div
-                  className={
-                    message.role === "user"
-                      ? "max-w-[80%] rounded-2xl rounded-tr-md bg-brand-500 px-4 py-3 text-sm text-white"
-                      : "max-w-[90%] rounded-2xl rounded-tl-md border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3"
-                  }
-                >
-                  {message.role === "assistant" ? (
-                    <MessageContent content={message.content} />
-                  ) : (
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                  )}
-                  {isStreaming && i === messages.length - 1 && message.role === "assistant" && message.content === "" && (
-                    <span className="inline-flex gap-1">
-                      {[0, 1, 2].map((d) => (
-                        <span
-                          key={d}
-                          className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--fyxvo-text-muted)] animate-bounce"
-                          style={{ animationDelay: `${d * 0.15}s` }}
-                        />
-                      ))}
-                    </span>
+              <div key={i} className={message.role === "user" ? "flex justify-end" : "flex justify-start group"}>
+                <div className="flex flex-col gap-1 max-w-[90%]">
+                  <div
+                    className={
+                      message.role === "user"
+                        ? "rounded-2xl rounded-tr-md bg-brand-500 px-4 py-3 text-sm text-white"
+                        : "rounded-2xl rounded-tl-md border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3"
+                    }
+                  >
+                    {message.role === "assistant" ? (
+                      <MessageContent content={message.content} />
+                    ) : (
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                    )}
+                    {isStreaming && i === messages.length - 1 && message.role === "assistant" && message.content === "" && (
+                      <span className="inline-flex gap-1">
+                        {[0, 1, 2].map((d) => (
+                          <span
+                            key={d}
+                            className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--fyxvo-text-muted)] animate-bounce"
+                            style={{ animationDelay: `${d * 0.15}s` }}
+                          />
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                  {message.content && !isStreaming && (
+                    <button
+                      onClick={() => copyMessage(message.content, i)}
+                      className="self-start text-xs text-[var(--fyxvo-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity hover:text-[var(--fyxvo-text)] px-1"
+                    >
+                      {copiedIdx === i ? "Copied!" : "Copy"}
+                    </button>
                   )}
                 </div>
               </div>

@@ -240,6 +240,60 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Use Cases */}
+      <section id="use-cases" className="border-t border-[var(--fyxvo-border)] py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-12">
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-[var(--fyxvo-text)] sm:text-4xl">
+              Who is building on Fyxvo
+            </h2>
+            <p className="mt-3 max-w-2xl text-base text-[var(--fyxvo-text-muted)]">
+              Teams running real devnet traffic with a need for funded, observable, and controllable RPC access.
+            </p>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                icon: "🏦",
+                title: "DeFi protocols",
+                body: "Validate swap, lending, and liquidation flows against devnet before mainnet deployment. Priority relay keeps latency-sensitive transactions on the fast path.",
+              },
+              {
+                icon: "🎮",
+                title: "Gaming studios",
+                body: "Test high-frequency asset minting, trade matching, and on-chain state transitions at realistic load without burning mainnet SOL.",
+              },
+              {
+                icon: "🔧",
+                title: "Tooling developers",
+                body: "Build wallets, explorers, and dashboards against a reliable, authenticated devnet RPC with structured request logs and error breakdowns.",
+              },
+              {
+                icon: "🤖",
+                title: "Agent frameworks",
+                body: "Run autonomous Solana agents with a funded API key that enforces scopes. Track every RPC call the agent makes in the analytics view.",
+              },
+              {
+                icon: "📱",
+                title: "Mobile dApps",
+                body: "Point your mobile client at a managed relay with rate limiting built in. No shared rate cap, no surprise throttles mid-demo.",
+              },
+              {
+                icon: "🧪",
+                title: "QA and staging",
+                body: "Separate staging and production projects with distinct funded balances and API keys. Different environment labels, same control surface.",
+              },
+            ].map((item) => (
+              <div key={item.title} className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-6">
+                <div className="mb-3 text-2xl">{item.icon}</div>
+                <p className="font-display text-base font-semibold text-[var(--fyxvo-text)]">{item.title}</p>
+                <p className="mt-2 text-sm leading-6 text-[var(--fyxvo-text-muted)]">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* How it works */}
       <section id="how-it-works" className="border-t border-[var(--fyxvo-border)] py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -464,20 +518,27 @@ export default async function HomePage() {
               </div>
               <div className="flex flex-wrap gap-3">
                 <TrackedLinkButton
-                  href="/pricing"
+                  href="/dashboard"
                   eventName="landing_cta_clicked"
-                  eventSource="home-community-pricing"
-                  variant="secondary"
+                  eventSource="home-community-dashboard"
                 >
-                  Review pricing
+                  Open dashboard
                 </TrackedLinkButton>
                 <TrackedLinkButton
-                  href="/contact"
+                  href="/docs"
                   eventName="landing_cta_clicked"
-                  eventSource="home-community-contact"
+                  eventSource="home-community-docs"
                   variant="secondary"
                 >
-                  Talk to the founder
+                  Read the docs
+                </TrackedLinkButton>
+                <TrackedLinkButton
+                  href="https://discord.gg/Uggu236Jgj"
+                  eventName="landing_cta_clicked"
+                  eventSource="home-community-discord"
+                  variant="ghost"
+                >
+                  Join Discord
                 </TrackedLinkButton>
               </div>
             </div>

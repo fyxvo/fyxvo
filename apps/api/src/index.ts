@@ -58,6 +58,18 @@ async function main() {
     databaseUrl: env.DATABASE_URL,
     redisUrl: env.REDIS_URL
   });
+  if (!env.ANTHROPIC_API_KEY) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        service: "fyxvo-api",
+        event: "api.startup.warning",
+        message: "ANTHROPIC_API_KEY is not configured. POST /v1/assistant/chat will return 503 until the key is set.",
+        timestamp: new Date().toISOString()
+      })
+    );
+  }
+
   const app = await buildProductionApiApp({
     env,
     prisma

@@ -86,6 +86,7 @@ export default function SettingsPage() {
     (portal.selectedProject as { displayName?: string } | null)?.displayName ?? ""
   );
   const [displayNameSaving, setDisplayNameSaving] = useState(false);
+  const [displayNameSaved, setDisplayNameSaved] = useState(false);
 
   // Notifications / Alerts
   const [lowBalanceSol, setLowBalanceSol] = useState(
@@ -114,6 +115,7 @@ export default function SettingsPage() {
   );
   const [projectNotes, setProjectNotes] = useState(portal.selectedProject?.notes ?? "");
   const [projectStarred, setProjectStarred] = useState(portal.selectedProject?.starred ?? false);
+  const [projectGithubUrl, setProjectGithubUrl] = useState(portal.selectedProject?.githubUrl ?? "");
   const [projectFieldsSaving, setProjectFieldsSaving] = useState(false);
 
   // Rename project
@@ -147,7 +149,11 @@ export default function SettingsPage() {
   async function saveDisplayName() {
     if (!portal.selectedProject) return;
     setDisplayNameSaving(true);
-    try { await patchProject(portal.selectedProject.id, { displayName }); } finally { setDisplayNameSaving(false); }
+    try {
+      await patchProject(portal.selectedProject.id, { displayName });
+      setDisplayNameSaved(true);
+      setTimeout(() => setDisplayNameSaved(false), 2500);
+    } finally { setDisplayNameSaving(false); }
   }
 
   async function saveProjectFields() {
@@ -158,6 +164,7 @@ export default function SettingsPage() {
         environment: projectEnvironment,
         notes: projectNotes || null,
         starred: projectStarred,
+        githubUrl: projectGithubUrl || null,
       });
       await portal.refresh();
     } finally { setProjectFieldsSaving(false); }
@@ -253,6 +260,47 @@ export default function SettingsPage() {
       <div className="grid gap-6">
         {/* Profile */}
         <SectionCard title="Profile" description="Identity information linked to your wallet.">
+          {portal.walletAddress ? (
+            <div className="flex items-center gap-4 pb-4 border-b border-[var(--fyxvo-border)]">
+              {/* Identicon avatar */}
+              <div
+                className="h-14 w-14 shrink-0 rounded-full border-2 border-[var(--fyxvo-border)] overflow-hidden"
+                aria-hidden="true"
+              >
+                <svg viewBox="0 0 56 56" width="56" height="56" xmlns="http://www.w3.org/2000/svg">
+                  {Array.from({ length: 5 }).map((_, row) =>
+                    Array.from({ length: 5 }).map((__, col) => {
+                      const addr = portal.walletAddress ?? "";
+                      const idx = (row * 5 + col) % Math.max(addr.length, 1);
+                      const code = addr.charCodeAt(idx) ?? 0;
+                      const hue = ((code * 37 + row * 71 + col * 113) % 360);
+                      const lit = 45 + (code % 30);
+                      const show = (code + row + col) % 2 === 0;
+                      return show ? (
+                        <rect
+                          key={`${row}-${col}`}
+                          x={col * 11 + 0.5}
+                          y={row * 11 + 0.5}
+                          width={10}
+                          height={10}
+                          fill={`hsl(${hue},70%,${lit}%)`}
+                        />
+                      ) : null;
+                    })
+                  )}
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium text-[var(--fyxvo-text)]">{portal.user?.displayName ?? "Anonymous"}</p>
+                <p className="text-xs text-[var(--fyxvo-text-muted)] font-mono">{shortenAddress(portal.walletAddress, 6, 6)}</p>
+                {portal.user?.createdAt ? (
+                  <p className="mt-1 text-xs text-[var(--fyxvo-text-muted)]">
+                    Member since {new Date(portal.user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <SettingRow label="Wallet address" description="Your primary authentication identity. Read-only.">
             {portal.walletAddress ? (
               <div className="flex items-center gap-2">
@@ -471,11 +519,16 @@ export default function SettingsPage() {
         {/* Project Settings */}
         <SectionCard title="Project settings" description="Settings for the currently selected project.">
           <SettingRow label="Project display name" description="Human-readable label shown in the project header.">
-            <div className="flex items-center gap-2">
-              <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. My Production Project" className="h-9 text-sm" />
-              <Button variant="secondary" size="sm" onClick={() => void saveDisplayName()} disabled={displayNameSaving || !portal.selectedProject || !portal.token}>
-                {displayNameSaving ? "Saving…" : "Save"}
-              </Button>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. My Production Project" className="h-9 text-sm" />
+                <Button variant="secondary" size="sm" onClick={() => void saveDisplayName()} disabled={displayNameSaving || !portal.selectedProject || !portal.token}>
+                  {displayNameSaving ? "Saving…" : "Save"}
+                </Button>
+              </div>
+              {displayNameSaved ? (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">Display name saved.</p>
+              ) : null}
             </div>
           </SettingRow>
           <SettingRow label="Environment" description="Label this project as development, staging, or production.">
@@ -520,6 +573,15 @@ export default function SettingsPage() {
                 className="w-full rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-3 py-2 text-sm text-[var(--fyxvo-text)] placeholder:text-[var(--fyxvo-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--fyxvo-accent)] resize-none"
               />
             </div>
+          </SettingRow>
+          <SettingRow label="GitHub repository" description="Link to the GitHub repo for this project. Shown on the project overview page.">
+            <Input
+              value={projectGithubUrl}
+              onChange={(e) => setProjectGithubUrl(e.target.value)}
+              placeholder="https://github.com/org/repo"
+              type="url"
+              className="h-9 text-sm w-full max-w-xs"
+            />
           </SettingRow>
           <SettingRow label="" description="">
             <Button variant="secondary" size="sm" onClick={() => void saveProjectFields()} disabled={projectFieldsSaving || !portal.selectedProject || !portal.token}>

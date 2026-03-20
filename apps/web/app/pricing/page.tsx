@@ -280,6 +280,80 @@ export default async function PricingPage() {
         </Card>
       </section>
 
+      {/* Comparison table */}
+      <section>
+        <h2 className="font-display text-2xl font-semibold text-[var(--fyxvo-text)] mb-6">How Fyxvo compares</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--fyxvo-border)]">
+                <th className="py-3 pr-6 text-left font-medium text-[var(--fyxvo-text-muted)] w-48">Feature</th>
+                <th className="py-3 px-4 text-center font-semibold text-[var(--fyxvo-text)] bg-brand-500/5 rounded-t-xl">Fyxvo</th>
+                <th className="py-3 px-4 text-center font-medium text-[var(--fyxvo-text-muted)]">Public RPC</th>
+                <th className="py-3 px-4 text-center font-medium text-[var(--fyxvo-text-muted)]">Generic RPCs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { feature: "On-chain funding", fyxvo: "✓ SOL-native", pub: "–", generic: "Credit card" },
+                { feature: "API key scoping", fyxvo: "✓ Revokable", pub: "–", generic: "Varies" },
+                { feature: "Per-request analytics", fyxvo: "✓ Live logs", pub: "–", generic: "Paid tier only" },
+                { feature: "Priority relay path", fyxvo: "✓ Separate endpoint", pub: "–", generic: "Not offered" },
+                { feature: "Rate limiting", fyxvo: "✓ Per-key + project", pub: "Hard caps", generic: "Plan-based" },
+                { feature: "Devnet focus", fyxvo: "✓ Purpose-built", pub: "Shared", generic: "Mainnet-first" },
+                { feature: "Transparent pricing", fyxvo: "✓ Lamport-per-req", pub: "Free / throttled", generic: "Opaque tiers" },
+              ].map((row) => (
+                <tr key={row.feature} className="border-b border-[var(--fyxvo-border)]">
+                  <td className="py-3 pr-6 text-[var(--fyxvo-text-muted)]">{row.feature}</td>
+                  <td className="py-3 px-4 text-center bg-brand-500/5 text-[var(--fyxvo-text)] font-medium">{row.fyxvo}</td>
+                  <td className="py-3 px-4 text-center text-[var(--fyxvo-text-muted)]">{row.pub}</td>
+                  <td className="py-3 px-4 text-center text-[var(--fyxvo-text-muted)]">{row.generic}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-[var(--fyxvo-text-muted)]">
+          Devnet alpha. Comparison is based on available public information and is provided for context only.
+        </p>
+      </section>
+
+      {/* FAQ */}
+      <section className="space-y-4">
+        <h2 className="font-display text-2xl font-semibold text-[var(--fyxvo-text)]">Frequently asked questions</h2>
+        {[
+          {
+            q: "Is this devnet only?",
+            a: "Yes. Fyxvo runs on Solana devnet during the private alpha. All projects, API keys, and funded balances are devnet. Mainnet is a future consideration once the protocol has been validated at scale."
+          },
+          {
+            q: "What happens when my SOL balance runs out?",
+            a: "Requests are rejected with a 402 status until the project is re-funded. Your API key remains valid — it just won't route traffic until the balance is topped up. The dashboard shows a low-balance warning when you approach threshold."
+          },
+          {
+            q: "Can I use one API key across multiple projects?",
+            a: "No. API keys are scoped to a single project. Each project has its own funded balance and rate window. You can issue multiple keys per project for different services or environments."
+          },
+          {
+            q: "What is the difference between standard and priority relay?",
+            a: "Standard relay handles all JSON-RPC reads through the managed node pool. Priority relay is a separate endpoint with a distinct rate window designed for DeFi transactions and latency-sensitive operations. It costs more per request and is billed separately."
+          },
+          {
+            q: "Are there any hidden fees?",
+            a: "No. Pricing is lamport-per-request, published in the config package, and applied at the time of the request. Volume discounts are applied automatically at threshold crossings. There are no platform fees, subscription fees, or overage charges beyond the per-request cost."
+          },
+          {
+            q: "How do volume discounts work?",
+            a: "Discounts are applied automatically when a project crosses the 1M or 10M monthly request threshold. The discount applies to all requests in the current billing window above the threshold — you don't need to negotiate or request it."
+          },
+        ].map((item) => (
+          <div key={item.q} className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">
+            <p className="font-medium text-[var(--fyxvo-text)]">{item.q}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--fyxvo-text-muted)]">{item.a}</p>
+          </div>
+        ))}
+      </section>
+
       <InterestCaptureForm
         source="pricing-page"
         title="Plan rollout, volume, or founder review"

@@ -5,6 +5,7 @@ export interface PortalUser {
   readonly role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
   readonly status: "ACTIVE" | "INVITED" | "DISABLED";
   readonly onboardingDismissed?: boolean;
+  readonly createdAt?: string | null;
 }
 
 export interface PortalProject {
@@ -22,6 +23,7 @@ export interface PortalProject {
   readonly environment: "development" | "staging" | "production";
   readonly starred: boolean;
   readonly notes: string | null;
+  readonly githubUrl: string | null;
   readonly archivedAt: string | null;
   readonly owner: PortalUser;
   readonly _count?: {

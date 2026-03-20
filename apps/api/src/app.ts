@@ -92,6 +92,7 @@ const updateProjectSchema = z.object({
   environment: z.enum(["development", "staging", "production"]).optional(),
   starred: z.boolean().optional(),
   notes: z.string().trim().max(2000).nullable().optional(),
+  githubUrl: z.string().url().max(256).nullable().optional(),
 });
 
 const createApiKeySchema = z.object({
@@ -772,6 +773,7 @@ export async function buildApiApp(input: {
         role: user.role,
         status: user.status,
         onboardingDismissed: fullUser?.onboardingDismissed ?? false,
+        createdAt: fullUser?.createdAt?.toISOString() ?? null,
       },
       projectCount: projects.length
     };
@@ -1084,7 +1086,8 @@ export async function buildApiApp(input: {
       ...(body.archivedAt !== undefined ? { archivedAt: body.archivedAt !== null ? new Date(body.archivedAt) : null } : {}),
       ...(body.environment !== undefined ? { environment: body.environment } : {}),
       ...(body.starred !== undefined ? { starred: body.starred } : {}),
-      ...(body.notes !== undefined ? { notes: body.notes } : {})
+      ...(body.notes !== undefined ? { notes: body.notes } : {}),
+      ...(body.githubUrl !== undefined ? { githubUrl: body.githubUrl } : {})
     };
 
     return {

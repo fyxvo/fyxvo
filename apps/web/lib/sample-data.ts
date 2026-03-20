@@ -37,6 +37,7 @@ export const previewProjects: PortalProject[] = [
     environment: "production",
     starred: true,
     notes: null,
+    githubUrl: null,
     archivedAt: null,
     owner,
     _count: {
@@ -61,6 +62,7 @@ export const previewProjects: PortalProject[] = [
     environment: "development",
     starred: false,
     notes: null,
+    githubUrl: null,
     archivedAt: null,
     owner,
     _count: {

@@ -68,6 +68,7 @@ export interface UpdateProjectInput {
   readonly environment?: "development" | "staging" | "production";
   readonly starred?: boolean;
   readonly notes?: string | null;
+  readonly githubUrl?: string | null;
 }
 
 export interface CreateNotificationInput {
@@ -484,8 +485,8 @@ export interface ReferralStats {
 }
 
 export interface ApiRepository {
-  findUserByWallet(walletAddress: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean } | null>;
-  findUserById(userId: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean } | null>;
+  findUserByWallet(walletAddress: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean; createdAt: Date } | null>;
+  findUserById(userId: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean; createdAt: Date } | null>;
   updateUser(userId: string, data: { onboardingDismissed?: boolean }): Promise<void>;
   createOrRefreshWalletUser(
     walletAddress: string,
