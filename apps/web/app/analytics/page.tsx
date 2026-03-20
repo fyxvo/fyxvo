@@ -178,36 +178,47 @@ export default function AnalyticsPage() {
       ) : null}
 
       {loadingAnalytics ? (
-        <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--fyxvo-panel-soft)]" />
           ))}
         </section>
       ) : (
-        <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           <MetricCard
-            label="Requests"
+            label="Total requests"
             value={formatInteger(displayAnalytics.totals.requestLogs)}
             detail="Request volume attributed to the selected project."
             accent={<DeltaBadge value="project scope" />}
           />
           <MetricCard
-            label="Average latency"
-            value={formatDuration(displayAnalytics.latency.averageMs)}
-            detail="Useful for spotting throughput issues before users report them."
+            label="Success rate"
+            value={(() => {
+              const total = displayAnalytics.totals.requestLogs;
+              if (!total) return "–";
+              const success = displayAnalytics.statusCodes
+                .filter((s) => s.statusCode < 400)
+                .reduce((sum, s) => sum + s.count, 0);
+              return formatPercent((success / total) * 100);
+            })()}
+            detail="Requests returning 2xx and 3xx status codes."
             accent={<DeltaBadge value="observed" />}
           />
           <MetricCard
-            label="Funding requests"
-            value={String(displayAnalytics.totals.fundingRequests)}
-            detail="Treasury prep requests made through the authenticated API workflow."
-            accent={<Badge tone="brand">project scope</Badge>}
+            label="Avg latency"
+            value={formatDuration(displayAnalytics.latency.averageMs)}
+            detail="Average end-to-end relay latency for the selected range."
+            accent={<Badge tone="brand">avg</Badge>}
           />
           <MetricCard
-            label="API keys"
-            value={String(displayAnalytics.totals.apiKeys)}
-            detail="Credential surface currently mapped to this project."
-            accent={<Badge tone="neutral">active</Badge>}
+            label="P95 latency"
+            value={
+              (displayAnalytics.latency as { averageMs: number; maxMs: number; p95Ms?: number }).p95Ms != null
+                ? formatDuration((displayAnalytics.latency as { averageMs: number; maxMs: number; p95Ms?: number }).p95Ms!)
+                : formatDuration(displayAnalytics.latency.maxMs)
+            }
+            detail="95th percentile latency — tail performance indicator."
+            accent={<Badge tone="neutral">p95</Badge>}
           />
         </section>
       )}

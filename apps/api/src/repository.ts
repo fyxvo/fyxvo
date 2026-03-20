@@ -916,6 +916,14 @@ export class PrismaApiRepository implements ApiRepository {
       })
     ]);
 
+    const allLatencies = await this.prisma.requestLog.findMany({
+      where,
+      select: { durationMs: true },
+      orderBy: { durationMs: "asc" }
+    });
+    const p95Index = Math.floor(allLatencies.length * 0.95);
+    const p95Ms = allLatencies[Math.max(0, p95Index - 1)]?.durationMs ?? 0;
+
     return {
       project: mapProject(project),
       totals: {
@@ -925,7 +933,8 @@ export class PrismaApiRepository implements ApiRepository {
       },
       latency: {
         averageMs: Math.round(requestSummary._avg.durationMs ?? 0),
-        maxMs: requestSummary._max.durationMs ?? 0
+        maxMs: requestSummary._max.durationMs ?? 0,
+        p95Ms
       },
       statusCodes: statusCodes.map((entry: { statusCode: number; _count: { statusCode: number } }) => ({
         statusCode: entry.statusCode,

@@ -1358,6 +1358,62 @@ export async function buildApiApp(input: {
     return reply.send(csv);
   });
 
+  app.get("/v1/projects/:projectId/checklist", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId } = request.params as { projectId: string };
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || !canAccessProject(user, project)) return reply.code(404).send({ error: "Project not found" });
+
+    const apiKeys = await input.repository.listApiKeys(projectId);
+
+    const checklist = {
+      projectId,
+      steps: [
+        {
+          key: "activated",
+          label: "Project activated on-chain",
+          complete: project.chainProjectId !== null && String(project.chainProjectId) !== "" && String(project.chainProjectId) !== "0",
+          href: `/projects/${project.slug}`
+        },
+        {
+          key: "funded",
+          label: "Project funded with SOL",
+          complete: (project._count?.fundingRequests ?? 0) > 0,
+          href: `/funding`
+        },
+        {
+          key: "api_key_created",
+          label: "API key created",
+          complete: apiKeys.length > 0,
+          href: `/api-keys`
+        },
+        {
+          key: "traffic_received",
+          label: "First relay request sent",
+          complete: (project._count?.requestLogs ?? 0) > 0,
+          href: `/analytics`
+        }
+      ],
+      completedCount: 0,
+      totalCount: 4
+    };
+    checklist.completedCount = checklist.steps.filter((s) => s.complete).length;
+
+    return reply.send({ item: checklist });
+  });
+
+  app.get("/v1/projects/:projectId/analytics/rate-limits", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId } = request.params as { projectId: string };
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || !canAccessProject(user, project)) return reply.code(404).send({ error: "Project not found" });
+
+    const logs = await input.repository.getErrorLog(projectId, 200);
+    const rateLimitEvents = logs.filter((e) => e.statusCode === 429);
+
+    return reply.send({ items: rateLimitEvents, count: rateLimitEvents.length });
+  });
+
   app.get("/v1/admin/stats", async (request) => {
     const user = requireUser(request);
     requireAdmin(user);

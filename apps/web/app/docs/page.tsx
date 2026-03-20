@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Notice } from "@fyxvo/ui";
 import { CopyButton } from "../../components/copy-button";
 import { PageHeader } from "../../components/page-header";
@@ -8,18 +8,18 @@ import { SocialLinkButtons } from "../../components/social-links";
 import { webEnv } from "../../lib/env";
 
 const NAV_SECTIONS = [
-  { id: "introduction", label: "Introduction" },
-  { id: "quickstart", label: "Quickstart" },
-  { id: "authentication", label: "Authentication" },
-  { id: "funding", label: "Funding" },
-  { id: "standard-rpc", label: "Standard RPC" },
-  { id: "priority-relay", label: "Priority Relay" },
-  { id: "analytics-api", label: "Analytics API" },
-  { id: "sdk-reference", label: "SDK Reference" },
-  { id: "rate-limits", label: "Rate Limits" },
-  { id: "troubleshooting", label: "Troubleshooting" },
-  { id: "network-status", label: "Network Status" },
-  { id: "changelog", label: "Changelog" },
+  { id: "introduction", label: "Introduction", keywords: "overview what is fyxvo devnet rpc relay product" },
+  { id: "quickstart", label: "Quickstart", keywords: "start connect wallet create project fund api key request curl" },
+  { id: "authentication", label: "Authentication", keywords: "wallet auth challenge verify token jwt bearer solana phantom" },
+  { id: "funding", label: "Funding", keywords: "sol lamports treasury deposit balance credits prepare sign transaction" },
+  { id: "standard-rpc", label: "Standard RPC", keywords: "rpc request jsonrpc endpoint gateway x-api-key getHealth getSlot" },
+  { id: "priority-relay", label: "Priority Relay", keywords: "priority relay high throughput fast latency /priority scope" },
+  { id: "analytics-api", label: "Analytics API", keywords: "analytics stats requests latency error rate monitoring project" },
+  { id: "sdk-reference", label: "SDK Reference", keywords: "sdk library reference types api endpoint paths" },
+  { id: "rate-limits", label: "Rate Limits", keywords: "rate limit 429 throttle bandwidth quota scope" },
+  { id: "troubleshooting", label: "Troubleshooting", keywords: "error debug fix 401 403 402 500 403 common issues" },
+  { id: "network-status", label: "Network Status", keywords: "status health uptime live devnet solana network" },
+  { id: "changelog", label: "Changelog", keywords: "release updates version changes new features" },
 ] as const;
 
 function CodeBlock({ code, label }: { readonly code: string; readonly label?: string }) {
@@ -75,6 +75,14 @@ function SectionHeading({
 
 export default function DocsPage() {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const authChallengeCode = `curl -X POST ${webEnv.apiBaseUrl}/v1/auth/challenge \\
   -H "content-type: application/json" \\
@@ -247,14 +255,15 @@ curl ${webEnv.gatewayBaseUrl}/v1/status
 open ${webEnv.statusPageUrl}`;
 
   const visibleSections = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return NAV_SECTIONS.map((s) => s.id);
     return NAV_SECTIONS.filter(
       (s) =>
         s.label.toLowerCase().includes(q) ||
-        s.id.toLowerCase().includes(q)
+        s.id.toLowerCase().includes(q) ||
+        s.keywords.toLowerCase().includes(q)
     ).map((s) => s.id);
-  }, [query]);
+  }, [debouncedQuery]);
 
   function scrollTo(id: string) {
     const el = document.getElementById(id);
@@ -912,6 +921,16 @@ open ${webEnv.statusPageUrl}`;
               </CardContent>
             </Card>
           </section>
+
+          {/* Full changelog link */}
+          <div className="text-center">
+            <a
+              href="/changelog"
+              className="text-sm text-[var(--fyxvo-brand)] hover:underline"
+            >
+              View the full changelog →
+            </a>
+          </div>
 
           {/* Footer notice */}
           <Notice tone="neutral" title="Still have questions?">

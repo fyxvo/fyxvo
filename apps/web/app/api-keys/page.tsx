@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Badge,
   Button,
@@ -32,6 +32,31 @@ export default function ApiKeysPage() {
   const [expandedKeyId, setExpandedKeyId] = useState<string | null>(null);
 
   const expandedKey = portal.apiKeys.find((k) => k.id === expandedKeyId) ?? null;
+
+  // Countdown for newly generated key (60 seconds)
+  const [countdown, setCountdown] = useState(0);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (portal.lastGeneratedApiKey && portal.lastGeneratedApiKey !== prevKeyRef.current) {
+      prevKeyRef.current = portal.lastGeneratedApiKey;
+      setCountdown(60);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      countdownRef.current = setInterval(() => {
+        setCountdown((c) => {
+          if (c <= 1) {
+            if (countdownRef.current) clearInterval(countdownRef.current);
+            return 0;
+          }
+          return c - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, [portal.lastGeneratedApiKey]);
 
   const exampleApiKey = portal.lastGeneratedApiKey ?? "YOUR_API_KEY";
   const standardRequest = `curl -X POST ${webEnv.gatewayBaseUrl}/rpc \\
@@ -80,6 +105,11 @@ export default function ApiKeysPage() {
           </div>
           <p className="mt-4 text-sm leading-6 text-[var(--fyxvo-text-soft)]">
             Copy it now. This is the only time the full key is shown.
+            {countdown > 0 ? (
+              <span className="ml-2 font-mono text-xs text-[var(--fyxvo-text-muted)]">
+                ({countdown}s)
+              </span>
+            ) : null}
           </p>
         </Notice>
       ) : null}
@@ -122,7 +152,7 @@ export default function ApiKeysPage() {
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]" scope="col">Last used</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]" scope="col">Created</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]" scope="col">Status</th>
-                  <th className="px-4 py-3" scope="col"><span className="sr-only">Expand</span></th>
+                  <th className="px-4 py-3" scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--fyxvo-border)] text-[var(--fyxvo-text-soft)]">
@@ -143,7 +173,9 @@ export default function ApiKeysPage() {
                       >
                         <td className="px-4 py-4 align-middle">
                           <div className="font-medium text-[var(--fyxvo-text)]">{apiKey.label}</div>
-                          <div className="font-mono text-xs uppercase tracking-[0.12em] text-[var(--fyxvo-text-muted)]">{apiKey.prefix}</div>
+                          <div className="font-mono text-xs text-[var(--fyxvo-text-muted)]">
+                            {apiKey.prefix}••••••••••••
+                          </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
                           <div className="flex flex-wrap gap-1.5">
@@ -164,16 +196,30 @@ export default function ApiKeysPage() {
                           <Badge tone={apiKey.status === "ACTIVE" ? "success" : "danger"}>{apiKey.status}</Badge>
                         </td>
                         <td className="px-4 py-4 align-middle text-right">
-                          <svg
-                            viewBox="0 0 12 12"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            className={`ml-auto h-3 w-3 text-[var(--fyxvo-text-muted)] transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                            aria-hidden="true"
-                          >
-                            <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
+                          <div className="flex items-center justify-end gap-2">
+                            {apiKey.status === "ACTIVE" && (
+                              <button
+                                type="button"
+                                className="rounded px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRevokeKey(apiKey);
+                                }}
+                              >
+                                Revoke
+                              </button>
+                            )}
+                            <svg
+                              viewBox="0 0 12 12"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              className={`h-3 w-3 text-[var(--fyxvo-text-muted)] transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                              aria-hidden="true"
+                            >
+                              <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
                         </td>
                       </tr>
                     );

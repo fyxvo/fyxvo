@@ -222,6 +222,18 @@ export interface AnalyticsOverview {
   }>;
 }
 
+export interface ProjectChecklist {
+  readonly projectId: string;
+  readonly steps: ReadonlyArray<{
+    readonly key: string;
+    readonly label: string;
+    readonly complete: boolean;
+    readonly href: string;
+  }>;
+  readonly completedCount: number;
+  readonly totalCount: number;
+}
+
 export interface ProjectAnalytics {
   readonly project: PortalProject;
   readonly totals: {
@@ -232,6 +244,7 @@ export interface ProjectAnalytics {
   readonly latency: {
     readonly averageMs: number;
     readonly maxMs: number;
+    readonly p95Ms?: number;
   };
   readonly statusCodes: Array<{
     readonly statusCode: number;

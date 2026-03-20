@@ -9,10 +9,9 @@ import {
   CardTitle,
   Notice,
 } from "@fyxvo/ui";
-import { PageHeader } from "../../components/page-header";
 import { getStatusSnapshot } from "../../lib/server-status";
 import { webEnv } from "../../lib/env";
-import { formatDuration } from "../../lib/format";
+import { formatDuration, shortenAddress } from "../../lib/format";
 import { liveDevnetState } from "../../lib/live-state";
 import { StatusRefreshIndicator } from "../../components/status-refresh-indicator";
 
@@ -82,68 +81,143 @@ export default async function StatusPage() {
 
   return (
     <div className="space-y-10 lg:space-y-12">
-      <PageHeader
-        eyebrow="Status"
-        title="Live condition across the hosted control plane, relay, and protocol."
-        description="This surface is the public truth layer for the current devnet launch. It shows what is live today, what is still managed by Fyxvo, and what remains intentionally gated so early teams can evaluate the product honestly."
-      />
+      {/* Hero status banner */}
+      <div className="flex flex-col items-center text-center py-8 gap-4">
+        <div className="flex items-center gap-3">
+          <span
+            className={`h-4 w-4 rounded-full ${healthy ? "bg-emerald-500" : "bg-amber-500"} shadow-lg`}
+          />
+          <h1 className="text-3xl font-bold text-[var(--fyxvo-text)]">
+            {healthy ? "All Systems Operational" : "Attention Needed"}
+          </h1>
+        </div>
+        <p className="text-sm text-[var(--fyxvo-text-muted)] max-w-lg">
+          Live condition across the Fyxvo control plane, relay gateway, and Solana devnet program.
+        </p>
+        <StatusRefreshIndicator />
+      </div>
 
-      <Notice tone="neutral" title="Share this during evaluation">
-        Use this page with <Link href="/docs">the quickstart</Link> when a teammate needs the live
-        condition, and use <Link href="/contact">contact</Link> when the next step is founder
-        follow-up or support instead of more self-serve debugging.
-      </Notice>
+      {/* Three service cards */}
+      <section className="grid gap-4 md:grid-cols-3">
+        {/* Card 1 — Control Plane (API) */}
+        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Control Plane (API)</CardTitle>
+            <Badge tone={status.apiHealth.status === "ok" ? "success" : "warning"}>
+              {status.apiHealth.status}
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-2xl font-bold text-[var(--fyxvo-text)]">
+              {status.apiStatus.solanaCluster}
+            </div>
+            <p className="text-xs text-[var(--fyxvo-text-muted)]">Solana cluster</p>
+            <div className="space-y-1 text-xs text-[var(--fyxvo-text-muted)]">
+              <p>
+                Database:{" "}
+                <span className="text-[var(--fyxvo-text-soft)]">
+                  {status.apiStatus.dependencies?.databaseConfigured ? "configured" : "not configured"}
+                </span>
+              </p>
+              <p>
+                Redis:{" "}
+                <span className="text-[var(--fyxvo-text-soft)]">
+                  {status.apiStatus.dependencies?.redisConfigured ? "configured" : "not configured"}
+                </span>
+              </p>
+            </div>
+            <Link
+              href={new URL("/health", webEnv.apiBaseUrl).toString()}
+              target="_blank"
+              className="text-xs text-[var(--fyxvo-brand)] hover:text-brand-600 dark:text-brand-300 dark:hover:text-brand-200"
+            >
+              API health endpoint →
+            </Link>
+          </CardContent>
+        </Card>
 
-      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        {/* Card 2 — Relay Gateway */}
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>System status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Badge tone={healthy ? "success" : "warning"}>
-              {healthy ? "healthy" : "attention needed"}
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Relay Gateway</CardTitle>
+            <Badge tone={status.gatewayHealth.status === "ok" ? "success" : "warning"}>
+              {status.gatewayHealth.status}
             </Badge>
-            <StatusRefreshIndicator />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-2xl font-bold text-[var(--fyxvo-text)]">
+              {percentage(gatewayMetrics?.standard?.successRate)}
+            </div>
+            <p className="text-xs text-[var(--fyxvo-text-muted)]">Standard success rate</p>
+            <div className="space-y-1 text-xs text-[var(--fyxvo-text-muted)]">
+              <p>
+                Standard latency:{" "}
+                <span className="text-[var(--fyxvo-text-soft)]">
+                  {typeof gatewayMetrics?.standard?.averageLatencyMs === "number"
+                    ? formatDuration(gatewayMetrics.standard.averageLatencyMs)
+                    : "Unavailable"}
+                </span>
+              </p>
+              <p>
+                Priority latency:{" "}
+                <span className="text-[var(--fyxvo-text-soft)]">
+                  {typeof gatewayMetrics?.priority?.averageLatencyMs === "number"
+                    ? formatDuration(gatewayMetrics.priority.averageLatencyMs)
+                    : "Unavailable"}
+                </span>
+              </p>
+              <p>
+                Upstream nodes:{" "}
+                <span className="text-[var(--fyxvo-text-soft)]">
+                  {status.gatewayStatus.nodeCount ?? 0}
+                </span>
+              </p>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Card 3 — Protocol (On-chain) */}
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>RPC latency</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Badge tone="brand">
-              {typeof gatewayMetrics?.standard?.averageLatencyMs === "number"
-                ? formatDuration(gatewayMetrics.standard.averageLatencyMs)
-                : "Unavailable"}
-            </Badge>
-            <p className="text-sm text-[var(--fyxvo-text-muted)]">
-              Standard path average latency from the live gateway metrics surface.
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Gateway success rate</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Badge tone="success">{percentage(gatewayMetrics?.standard?.successRate)}</Badge>
-            <p className="text-sm text-[var(--fyxvo-text-muted)]">
-              Live success rate reported by the hosted relay.
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
-          <CardHeader>
-            <CardTitle>Protocol readiness</CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Protocol (On-chain)</CardTitle>
             <Badge tone={readiness?.ready ? "success" : "warning"}>
-              {readiness?.ready ? "ready" : "needs attention"}
+              {readiness?.ready ? "ready" : "attention"}
             </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-2xl font-bold text-[var(--fyxvo-text)]">
+              {shortenAddress(liveDevnetState.programId)}
+            </div>
+            <p className="text-xs text-[var(--fyxvo-text-muted)]">Program ID</p>
+            <div className="space-y-1 text-xs text-[var(--fyxvo-text-muted)]">
+              <p>
+                Cluster:{" "}
+                <span className="text-[var(--fyxvo-text-soft)]">
+                  {status.apiStatus.solanaCluster}
+                </span>
+              </p>
+              <p>
+                SOL:{" "}
+                <span className="text-[var(--fyxvo-text-soft)]">live</span>
+              </p>
+              <p>
+                USDC:{" "}
+                <span className="text-[var(--fyxvo-text-soft)]">
+                  {status.apiStatus.acceptedAssets?.usdcEnabled ? "enabled" : "gated"}
+                </span>
+              </p>
+              <p>
+                Authority:{" "}
+                <span className="text-[var(--fyxvo-text-soft)]">
+                  {status.apiStatus.authorityPlan?.mode ?? "unavailable"}
+                </span>
+              </p>
+            </div>
           </CardContent>
         </Card>
       </section>
 
+      {/* Detailed service information */}
       <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>
@@ -330,7 +404,7 @@ export default async function StatusPage() {
 
             {readiness && !readiness.ready ? (
               <div className="rounded-[1.5rem] border border-amber-500/20 bg-amber-500/5 p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-amber-300/80">
+                <div className="text-xs uppercase tracking-[0.16em] text-amber-700 dark:text-amber-400">
                   Readiness reasons
                 </div>
                 <div className="mt-2 space-y-2 text-sm text-[var(--fyxvo-text-soft)]">
@@ -340,6 +414,31 @@ export default async function StatusPage() {
                 </div>
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Incident history */}
+      <section>
+        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+          <CardHeader>
+            <CardTitle>Incident history</CardTitle>
+            <CardDescription>Past incidents and operational notes for the devnet private alpha.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="rounded-[1.5rem] border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-medium text-[var(--fyxvo-text)]">Devnet Private Alpha Launch</div>
+                  <Badge tone="success">resolved</Badge>
+                </div>
+                <p className="mt-1 text-xs text-[var(--fyxvo-text-muted)]">March 2026</p>
+                <p className="mt-3 text-sm text-[var(--fyxvo-text-soft)]">
+                  Initial devnet deployment with SOL funding path, wallet authentication, API key management, and funded relay access. No incidents recorded.
+                </p>
+              </div>
+              <p className="text-sm text-[var(--fyxvo-text-muted)]">No other incidents recorded during private alpha.</p>
+            </div>
           </CardContent>
         </Card>
       </section>

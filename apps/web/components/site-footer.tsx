@@ -9,7 +9,7 @@ const productLinks = [
   { href: "/pricing", label: "Pricing" },
   { href: "/status", label: "Status" },
   { href: "/contact", label: "Contact" },
-  { href: "/docs", label: "Changelog" },
+  { href: "/changelog", label: "Changelog" },
 ];
 
 const communityLinks = [

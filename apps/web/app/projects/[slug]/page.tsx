@@ -182,7 +182,7 @@ export default function ProjectPage({
         ) : null}
       </section>
 
-      <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>
             <CardTitle>Project PDA</CardTitle>

@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "daemon": false,
   "remoteCache": {
     "enabled": false
   },
@@ -10,19 +11,23 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "cache": true
     },
     "lint": {
       "dependsOn": ["^lint"],
-      "outputs": []
+      "outputs": [],
+      "cache": true
     },
     "typecheck": {
       "dependsOn": ["^build", "^typecheck"],
-      "outputs": []
+      "outputs": [],
+      "cache": true
     },
     "test": {
       "dependsOn": ["^build", "^test"],
-      "outputs": []
+      "outputs": [],
+      "cache": true
     }
   }
 }

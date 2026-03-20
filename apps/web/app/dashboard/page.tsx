@@ -29,10 +29,13 @@ import { dashboardTrend } from "../../lib/sample-data";
 import {
   formatDuration,
   formatInteger,
+  formatPercent,
   formatRelativeDate,
   formatSol,
   shortenAddress,
 } from "../../lib/format";
+import { GatewayHealthCard } from "../../components/gateway-health";
+import { OnboardingChecklist } from "../../components/onboarding-checklist";
 import type { AdminOverview, PortalProject } from "../../lib/types";
 import { webEnv } from "../../lib/env";
 
@@ -413,8 +416,63 @@ export default function DashboardPage() {
     },
   ] as const;
 
+  const availableSolCredits = portal.onchainSnapshot.balances?.availableSolCredits;
+  const availableSolDisplay = availableSolCredits
+    ? `${(Number(BigInt(availableSolCredits)) / 1e9).toFixed(3)} SOL`
+    : "0.000 SOL";
+
+  const totalRequests = portal.projectAnalytics.totals.requestLogs;
+  const successCount = portal.projectAnalytics.statusCodes
+    .filter((entry) => entry.statusCode < 400)
+    .reduce((sum, entry) => sum + entry.count, 0);
+  const successRateDisplay =
+    totalRequests > 0 ? formatPercent((successCount / totalRequests) * 100) : "–";
+
   return (
     <div className="space-y-10 lg:space-y-12">
+      {portal.walletPhase === "authenticated" && portal.selectedProject ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-[var(--fyxvo-text-muted)]">Project</span>
+              <span className="text-sm font-semibold text-[var(--fyxvo-text)]">
+                {portal.selectedProject.name}
+              </span>
+            </div>
+            <span className="rounded-md border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel)] px-2 py-0.5 font-mono text-xs text-[var(--fyxvo-text-muted)]">
+              {portal.selectedProject.slug}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              {portal.onchainSnapshot.projectAccountExists ? (
+                <>
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                  </span>
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    Activated
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-amber-400" />
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                    Not activated
+                  </span>
+                </>
+              )}
+            </div>
+            {portal.projects.length > 1 ? (
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/projects">Switch project</Link>
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <PageHeader
         eyebrow="Dashboard"
         title="Move from wallet auth to funded relay traffic without guessing the next step."
@@ -712,31 +770,73 @@ export default function DashboardPage() {
         </Card>
       </section>
 
-      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <MetricCard
-          label="Projects"
-          value={String(portal.projects.length)}
-          detail="Each project maps to an on-chain account, funding history, and relay access boundary."
-          accent={<DeltaBadge value="live control" />}
+          label="Total Requests"
+          value={formatInteger(portal.projectAnalytics.totals.requestLogs)}
+          detail="Relay request logs recorded for the selected project."
+          accent={<DeltaBadge value="log-backed" />}
         />
         <MetricCard
-          label="Average latency"
-          value={formatDuration(portal.analyticsOverview.latency.averageMs)}
-          detail="Blended request latency across API, gateway, and worker logs."
-          accent={<DeltaBadge value="observed" />}
+          label="Success Rate"
+          value={successRateDisplay}
+          detail="Requests returning a status code below 400, relative to total requests."
+          accent={<DeltaBadge value="observed" positive={successCount >= totalRequests * 0.9} />}
         />
         <MetricCard
-          label="Treasury reserve"
-          value={formatSol(portal.onchainSnapshot.treasurySolBalance)}
-          detail="Treasury SOL visible before the standard relay floor is hit."
+          label="Avg Latency"
+          value={formatDuration(portal.projectAnalytics.latency.averageMs)}
+          detail="Mean end-to-end latency across all recorded relay requests."
+          accent={<DeltaBadge value="ms" />}
+        />
+        <MetricCard
+          label="Available SOL"
+          value={availableSolDisplay}
+          detail="Spendable SOL credits in the project treasury available for relay access."
           accent={<DeltaBadge value="chain-backed" />}
         />
-        <MetricCard
-          label="Selected project"
-          value={portal.selectedProject?.name ?? "None"}
-          detail="Keys, funding, and analytics remain anchored to one active project."
-          accent={<Badge tone="brand">{portal.selectedProject?.slug ?? "waiting"}</Badge>}
-        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <GatewayHealthCard />
+        {portal.projectAnalytics.totals.requestLogs > 0 ? (
+          <div className="rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel)] p-5">
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-[var(--fyxvo-text)]">Recent Requests</h3>
+              <p className="mt-0.5 text-xs text-[var(--fyxvo-text-muted)]">
+                Latest relay calls for the selected project
+              </p>
+            </div>
+            <div className="space-y-2">
+              {portal.projectAnalytics.recentRequests.slice(0, 5).map((request) => (
+                <div
+                  key={request.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3"
+                >
+                  <div>
+                    <div className="text-sm font-medium text-[var(--fyxvo-text)]">
+                      {request.method} {request.route}
+                    </div>
+                    <div className="mt-0.5 text-xs text-[var(--fyxvo-text-muted)]">
+                      {request.service.toUpperCase()} · {formatRelativeDate(request.createdAt)} · {formatDuration(request.durationMs)}
+                    </div>
+                  </div>
+                  <Badge tone={request.statusCode >= 400 ? "warning" : "success"}>
+                    {request.statusCode}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <OnboardingChecklist
+            projectId={portal.selectedProject?.id ?? ""}
+            projectSlug={portal.selectedProject?.slug ?? ""}
+            onchain={portal.onchainSnapshot}
+            apiKeys={portal.apiKeys}
+            requestCount={portal.projectAnalytics.totals.requestLogs}
+          />
+        )}
       </section>
 
       <section className="grid gap-6 lg:grid-cols-3">

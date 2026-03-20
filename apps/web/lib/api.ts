@@ -24,7 +24,8 @@ import type {
   ProjectActivationVerification,
   PortalServiceStatus,
   PortalUser,
-  ProjectAnalytics
+  ProjectAnalytics,
+  ProjectChecklist
 } from "./types";
 import { webEnv } from "./env";
 
@@ -432,6 +433,16 @@ export async function getMe(token: string) {
 export async function getFundingHistory(token: string) {
   const response = await requestApi<{ items: FundingHistoryItem[] }>("/v1/transactions", undefined, token);
   return response.items;
+}
+
+export async function getProjectChecklist(projectId: string, token: string) {
+  const response = await requestApi<{ item: ProjectChecklist }>(`/v1/projects/${projectId}/checklist`, undefined, token);
+  return response.item;
+}
+
+export async function getProjectRateLimits(projectId: string, token: string) {
+  const response = await requestApi<{ items: ErrorLogEntry[]; count: number }>(`/v1/projects/${projectId}/analytics/rate-limits`, undefined, token);
+  return response;
 }
 
 export function isPortalApiError(error: unknown): error is PortalApiError {

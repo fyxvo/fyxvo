@@ -205,6 +205,7 @@ export interface ProjectAnalytics {
   readonly latency: {
     readonly averageMs: number;
     readonly maxMs: number;
+    readonly p95Ms: number;
   };
   readonly statusCodes: Array<{
     readonly statusCode: number;

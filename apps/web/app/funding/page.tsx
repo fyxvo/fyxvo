@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Button,
@@ -17,14 +17,29 @@ import { CopyButton } from "../../components/copy-button";
 import { PageHeader } from "../../components/page-header";
 import { AuthGate } from "../../components/state-panels";
 import { usePortal } from "../../components/portal-provider";
+import { getFundingHistory } from "../../lib/api";
 import { webEnv } from "../../lib/env";
-import { formatSol } from "../../lib/format";
+import { formatRelativeDate, formatSol } from "../../lib/format";
+import type { FundingHistoryItem } from "../../lib/types";
+
+// Standard relay costs roughly 0.000005 SOL per request (5000 lamports)
+const SOL_PER_REQUEST_LAMPORTS = 5_000n;
+
+function estimateRequests(lamports: bigint): string {
+  if (lamports <= 0n) return "0";
+  const requests = lamports / SOL_PER_REQUEST_LAMPORTS;
+  if (requests > 1_000_000n) return `~${(Number(requests) / 1_000_000).toFixed(1)}M`;
+  if (requests > 1_000n) return `~${(Number(requests) / 1_000).toFixed(0)}k`;
+  return `~${requests.toString()}`;
+}
 
 export default function FundingPage() {
   const portal = usePortal();
   const [asset, setAsset] = useState<"SOL" | "USDC">("SOL");
   const [amount, setAmount] = useState("1000000000");
   const [tokenAccount, setTokenAccount] = useState("");
+  const [history, setHistory] = useState<FundingHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const availableSolCredits = (() => {
     try {
@@ -35,6 +50,21 @@ export default function FundingPage() {
   })();
   const hasLowBalance = availableSolCredits > 0n && availableSolCredits < 100_000_000n;
   const phase = portal.transactionState.phase;
+
+  const amountLamports = (() => {
+    try { return BigInt(amount); } catch { return 0n; }
+  })();
+
+  useEffect(() => {
+    if (!portal.token) return;
+    let cancelled = false;
+    setLoadingHistory(true);
+    getFundingHistory(portal.token)
+      .then((items) => { if (!cancelled) setHistory(items); })
+      .catch(() => { if (!cancelled) setHistory([]); })
+      .finally(() => { if (!cancelled) setLoadingHistory(false); });
+    return () => { cancelled = true; };
+  }, [portal.token]);
 
   return (
     <div className="space-y-8">
@@ -107,7 +137,7 @@ export default function FundingPage() {
               onChange={(event) => setAmount(event.target.value)}
               hint={
                 asset === "SOL"
-                  ? "1 SOL = 1,000,000,000 lamports"
+                  ? `1 SOL = 1,000,000,000 lamports · ${estimateRequests(amountLamports)} relay requests at ~5000 lamports/req`
                   : "USDC uses 6 decimals on devnet"
               }
             />
@@ -304,6 +334,89 @@ export default function FundingPage() {
           </CardContent>
         </Card>
       </section>
+
+      {portal.walletPhase === "authenticated" && (
+        <section>
+          <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+            <CardHeader>
+              <CardTitle>Funding history</CardTitle>
+              <CardDescription>
+                All funding events for your projects, newest first. Confirmed transactions include a
+                Solana Explorer link.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingHistory ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-12 animate-pulse rounded-lg bg-[var(--fyxvo-panel-soft)]" />
+                  ))}
+                </div>
+              ) : history.length === 0 ? (
+                <Notice tone="neutral" title="No funding events yet">
+                  Your funding history will appear here after the first SOL transaction confirms.
+                </Notice>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-[var(--fyxvo-border)]">
+                      <tr>
+                        <th className="pb-3 text-left text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Date</th>
+                        <th className="pb-3 text-left text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Project</th>
+                        <th className="pb-3 text-left text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Asset</th>
+                        <th className="pb-3 text-right text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Amount</th>
+                        <th className="pb-3 text-left text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Status</th>
+                        <th className="pb-3 text-left text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Explorer</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--fyxvo-border)]">
+                      {history.map((item) => (
+                        <tr key={item.id} className="text-[var(--fyxvo-text-soft)]">
+                          <td className="py-3 text-xs">{formatRelativeDate(item.createdAt)}</td>
+                          <td className="py-3 text-xs font-medium text-[var(--fyxvo-text)]">{item.projectName}</td>
+                          <td className="py-3 text-xs uppercase">{item.asset}</td>
+                          <td className="py-3 text-right font-mono text-xs">
+                            {item.asset === "SOL"
+                              ? `${(Number(BigInt(item.amount)) / 1_000_000_000).toFixed(3)} SOL`
+                              : item.amount}
+                          </td>
+                          <td className="py-3 text-xs">
+                            <Badge
+                              tone={
+                                item.status === "CONFIRMED"
+                                  ? "success"
+                                  : item.status === "FAILED"
+                                  ? "danger"
+                                  : "neutral"
+                              }
+                            >
+                              {item.status.toLowerCase()}
+                            </Badge>
+                          </td>
+                          <td className="py-3 text-xs">
+                            {item.transactionSignature ? (
+                              <Link
+                                href={`https://explorer.solana.com/tx/${item.transactionSignature}?cluster=devnet`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-mono text-[var(--fyxvo-brand)] hover:underline"
+                              >
+                                {item.transactionSignature.slice(0, 8)}…
+                              </Link>
+                            ) : (
+                              <span className="text-[var(--fyxvo-text-muted)]">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
     </div>
   );
 }

@@ -43,10 +43,13 @@ import type {
   CreateInterestSubmissionInput,
   CreateApiKeyInput,
   CreateNotificationInput,
+  ApiKeyAnalyticsItem,
   CreateProjectInput,
+  ErrorLogItem,
   FundingHistoryItem,
   FundingRecordInput,
   IdempotencyLookup,
+  MethodBreakdownItem,
   NotificationItem,
   OperatorSummary,
   ProjectAnalytics,
@@ -528,7 +531,12 @@ class MemoryApiRepository implements ApiRepository {
                 requestLogs.reduce((total, requestLog) => total + requestLog.durationMs, 0) /
                   requestLogs.length
               ),
-        maxMs: requestLogs.reduce((max, requestLog) => Math.max(max, requestLog.durationMs), 0)
+        maxMs: requestLogs.reduce((max, requestLog) => Math.max(max, requestLog.durationMs), 0),
+        p95Ms: (() => {
+          if (requestLogs.length === 0) return 0;
+          const sorted = [...requestLogs].sort((a, b) => a.durationMs - b.durationMs);
+          return sorted[Math.max(0, Math.floor(sorted.length * 0.95) - 1)]?.durationMs ?? 0;
+        })()
       },
       statusCodes: [...statusCodes.entries()].map(([statusCode, count]) => ({
         statusCode,
@@ -549,6 +557,63 @@ class MemoryApiRepository implements ApiRepository {
         fundingRequests: this.fundingCoordinates.size,
         requestLogs: this.requestLogs.size
       }
+    };
+  }
+
+  async getErrorLog(projectId: string, limit: number): Promise<ErrorLogItem[]> {
+    return [...this.requestLogs.values()]
+      .filter((r) => r.projectId === projectId && r.statusCode >= 400)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({
+        id: r.id,
+        route: r.route,
+        method: r.method,
+        service: r.service,
+        statusCode: r.statusCode,
+        durationMs: r.durationMs,
+        createdAt: r.createdAt.toISOString(),
+        apiKeyPrefix: null
+      }));
+  }
+
+  async getMethodBreakdown(projectId: string, _since: Date): Promise<MethodBreakdownItem[]> {
+    const logs = [...this.requestLogs.values()].filter((r) => r.projectId === projectId);
+    const byRoute = new Map<string, typeof logs>();
+    for (const log of logs) {
+      const key = `${log.route}::${log.service}`;
+      const arr = byRoute.get(key) ?? [];
+      arr.push(log);
+      byRoute.set(key, arr);
+    }
+    return [...byRoute.entries()].map(([, entries]) => {
+      const first = entries[0]!;
+      const errorCount = entries.filter((e) => e.statusCode >= 400).length;
+      return {
+        route: first.route,
+        service: first.service,
+        count: entries.length,
+        averageLatencyMs: Math.round(entries.reduce((s, e) => s + e.durationMs, 0) / entries.length),
+        errorRate: entries.length > 0 ? errorCount / entries.length : 0,
+        errorCount
+      };
+    });
+  }
+
+  async getApiKeyAnalytics(_projectId: string, apiKeyId: string, _since: Date): Promise<ApiKeyAnalyticsItem> {
+    const logs = [...this.requestLogs.values()].filter((r) => r.apiKeyId === apiKeyId);
+    const errorLogs = logs.filter((r) => r.statusCode >= 400);
+    const sorted = [...logs].sort((a, b) => a.durationMs - b.durationMs);
+    const p95 = sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)]?.durationMs ?? 0;
+    return {
+      apiKeyId,
+      totalRequests: logs.length,
+      successRequests: logs.length - errorLogs.length,
+      errorRequests: errorLogs.length,
+      errorRate: logs.length > 0 ? errorLogs.length / logs.length : 0,
+      averageLatencyMs: logs.length > 0 ? Math.round(logs.reduce((s, r) => s + r.durationMs, 0) / logs.length) : 0,
+      p95LatencyMs: p95,
+      dailyBuckets: []
     };
   }
 
