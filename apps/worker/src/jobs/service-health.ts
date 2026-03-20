@@ -67,6 +67,28 @@ export async function processServiceHealthCheck(input: {
       },
       "Service health snapshot recorded"
     );
+
+    // Incident detection: 5 consecutive unhealthy snapshots (~15 min window) → open incident
+    const unhealthyCount = await input.repository.countRecentUnhealthySnapshots(target.name, 15);
+    const openIncident = await input.repository.findOpenIncident(target.name);
+
+    if (unhealthyCount >= 5 && !openIncident) {
+      const incidentId = await input.repository.openIncident({
+        serviceName: target.name,
+        severity: result.status === "unreachable" ? "critical" : "degraded",
+        description: result.errorMessage ?? `${target.name} has been unhealthy for the last 15 minutes`
+      });
+      input.logger.warn(
+        { service: target.name, incidentId, unhealthyCount },
+        "Incident opened for degraded service"
+      );
+    } else if (result.status === "healthy" && openIncident) {
+      await input.repository.resolveIncident(openIncident.id);
+      input.logger.info(
+        { service: target.name, incidentId: openIncident.id },
+        "Incident resolved — service recovered"
+      );
+    }
   }
 
   // Worker is healthy if it can reach this code path

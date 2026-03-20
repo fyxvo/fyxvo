@@ -724,6 +724,40 @@ export async function buildApiApp(input: {
     return serviceHealthCache.data;
   });
 
+  app.get("/v1/incidents", async (_request, reply) => {
+    const incidents = await input.repository.listIncidents(50);
+    reply.header("cache-control", "public, max-age=60, stale-while-revalidate=120");
+    return { incidents };
+  });
+
+  app.get("/v1/referral/stats", async (request) => {
+    const user = requireUser(request);
+    const stats = await input.repository.getReferralStats(user.id);
+    return stats;
+  });
+
+  app.post("/v1/referral/generate", async (request) => {
+    const user = requireUser(request);
+    const stats = await input.repository.getReferralStats(user.id);
+    if (stats.referralCode) {
+      return { referralCode: stats.referralCode };
+    }
+    const referralCode = await input.repository.generateReferralCode(user.id);
+    return { referralCode };
+  });
+
+  app.post("/v1/referral/click/:code", async (request, reply) => {
+    const { code } = request.params as { code: string };
+    if (!code || !/^[a-z0-9]{8}$/.test(code)) {
+      return reply.status(400).send({ error: "Invalid referral code" });
+    }
+    const result = await input.repository.recordReferralClick(code);
+    if (!result) {
+      return reply.status(404).send({ error: "Referral code not found" });
+    }
+    return { success: true };
+  });
+
   app.get("/v1/me", async (request) => {
     const user = requireUser(request);
     const [projects, fullUser] = await Promise.all([

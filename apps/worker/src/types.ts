@@ -147,6 +147,14 @@ export interface WorkerRepository {
     readonly responseTimeMs?: number | null;
     readonly errorMessage?: string | null;
   }): Promise<void>;
+  countRecentUnhealthySnapshots(serviceName: string, windowMinutes: number): Promise<number>;
+  openIncident(input: {
+    readonly serviceName: string;
+    readonly severity: string;
+    readonly description: string;
+  }): Promise<string>;
+  resolveIncident(incidentId: string): Promise<void>;
+  findOpenIncident(serviceName: string): Promise<{ id: string } | null>;
 }
 
 export interface SignatureSummary {

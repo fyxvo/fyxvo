@@ -468,6 +468,21 @@ export interface ServiceHealthEntry {
 
 export type ServiceHealthHistory = Record<string, ServiceHealthEntry[]>;
 
+export interface IncidentItem {
+  readonly id: string;
+  readonly serviceName: string;
+  readonly severity: string;
+  readonly description: string;
+  readonly startedAt: string;
+  readonly resolvedAt: string | null;
+}
+
+export interface ReferralStats {
+  readonly referralCode: string | null;
+  readonly totalClicks: number;
+  readonly conversions: number;
+}
+
 export interface ApiRepository {
   findUserByWallet(walletAddress: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean } | null>;
   findUserById(userId: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean } | null>;
@@ -515,6 +530,10 @@ export interface ApiRepository {
   getNetworkStats(): Promise<NetworkStats>;
   getServiceHealthHistory(limitPerService: number): Promise<ServiceHealthHistory>;
   getAssistantStats(): Promise<AssistantStats>;
+  listIncidents(limit: number): Promise<IncidentItem[]>;
+  getReferralStats(userId: string): Promise<ReferralStats>;
+  recordReferralClick(referralCode: string): Promise<{ referrerId: string } | null>;
+  generateReferralCode(userId: string): Promise<string>;
 }
 
 export interface ProjectCreationPreparation {

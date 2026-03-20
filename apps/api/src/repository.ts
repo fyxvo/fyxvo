@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   ApiKeyStatus,
   type PrismaClientType,
@@ -31,7 +31,9 @@ import type {
   RequestLogInput,
   SaveIdempotencyInput,
   ServiceHealthHistory,
-  UpdateProjectInput
+  UpdateProjectInput,
+  IncidentItem,
+  ReferralStats
 } from "./types.js";
 
 type PrismaProject = PrismaNamespace.ProjectGetPayload<{
@@ -1186,6 +1188,70 @@ export class PrismaApiRepository implements ApiRepository {
       averageResponseTimeMs: 0,
       rateLimitHitsToday: 0,
     };
+  }
+
+  async listIncidents(limit: number): Promise<IncidentItem[]> {
+    const rows = await this.prisma.incident.findMany({
+      orderBy: { startedAt: "desc" },
+      take: limit
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      serviceName: row.serviceName,
+      severity: row.severity,
+      description: row.description,
+      startedAt: row.startedAt.toISOString(),
+      resolvedAt: row.resolvedAt ? row.resolvedAt.toISOString() : null
+    }));
+  }
+
+  async getReferralStats(userId: string): Promise<ReferralStats> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { referralCode: true, referralClicks: true }
+    });
+    if (!user) {
+      return { referralCode: null, totalClicks: 0, conversions: 0 };
+    }
+    return {
+      referralCode: user.referralCode,
+      totalClicks: user.referralClicks.length,
+      conversions: user.referralClicks.filter((c) => c.convertedToSignup).length
+    };
+  }
+
+  async recordReferralClick(referralCode: string): Promise<{ referrerId: string } | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { referralCode },
+      select: { id: true }
+    });
+    if (!user) return null;
+
+    await this.prisma.referralClick.create({
+      data: { referrerId: user.id }
+    });
+    return { referrerId: user.id };
+  }
+
+  async generateReferralCode(userId: string): Promise<string> {
+    // Generate unique 8-char alphanumeric code
+    const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let code: string;
+    let attempts = 0;
+    do {
+      code = Array.from(randomBytes(8))
+        .map((b) => alphabet[b % alphabet.length])
+        .join("");
+      const existing = await this.prisma.user.findUnique({ where: { referralCode: code }, select: { id: true } });
+      if (!existing) break;
+      attempts++;
+    } while (attempts < 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { referralCode: code }
+    });
+    return code;
   }
 }
 

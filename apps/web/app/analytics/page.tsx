@@ -23,6 +23,8 @@ import { dashboardTrend } from "../../lib/sample-data";
 import { formatDuration, formatInteger, formatPercent, formatRelativeDate } from "../../lib/format";
 import type { AnalyticsRange, ErrorLogEntry, MethodBreakdown, ProjectAnalytics } from "../../lib/types";
 import { PRICING_LAMPORTS, COMPUTE_HEAVY_METHODS, WRITE_METHODS } from "@fyxvo/config";
+import { webEnv } from "../../lib/env";
+import { CopyButton } from "../../components/copy-button";
 
 const RANGE_OPTIONS: { label: string; value: AnalyticsRange }[] = [
   { label: "1h", value: "1h" },
@@ -452,20 +454,29 @@ export default function AnalyticsPage() {
                         <th className="pb-3 text-left text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Method</th>
                         <th className="pb-3 text-right text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Latency</th>
                         <th className="pb-3 text-right text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Time</th>
+                        <th className="pb-3 text-right text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Replay</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--fyxvo-border)]">
-                      {errors.map((entry) => (
-                        <tr key={entry.id} className="text-[var(--fyxvo-text-soft)]">
-                          <td className="py-3 font-mono text-xs text-[var(--fyxvo-text)]">{entry.route}</td>
-                          <td className="py-3 text-xs">
-                            <Badge tone={entry.statusCode >= 500 ? "danger" : "warning"}>{entry.statusCode}</Badge>
-                          </td>
-                          <td className="py-3 text-xs uppercase">{entry.method}</td>
-                          <td className="py-3 text-right text-xs">{formatDuration(entry.durationMs)}</td>
-                          <td className="py-3 text-right text-xs">{formatRelativeDate(entry.createdAt)}</td>
-                        </tr>
-                      ))}
+                      {errors.map((entry) => {
+                        const replayCurl = entry.service === "gateway"
+                          ? `curl -X POST ${webEnv.gatewayBaseUrl}${entry.route} \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"jsonrpc":"2.0","id":1,"method":"getSlot","params":[]}'`
+                          : `curl -X ${entry.method} ${webEnv.apiBaseUrl}${entry.route} \\\n  -H "Authorization: Bearer YOUR_API_TOKEN"`;
+                        return (
+                          <tr key={entry.id} className="text-[var(--fyxvo-text-soft)]">
+                            <td className="py-3 font-mono text-xs text-[var(--fyxvo-text)]">{entry.route}</td>
+                            <td className="py-3 text-xs">
+                              <Badge tone={entry.statusCode >= 500 ? "danger" : "warning"}>{entry.statusCode}</Badge>
+                            </td>
+                            <td className="py-3 text-xs uppercase">{entry.method}</td>
+                            <td className="py-3 text-right text-xs">{formatDuration(entry.durationMs)}</td>
+                            <td className="py-3 text-right text-xs">{formatRelativeDate(entry.createdAt)}</td>
+                            <td className="py-3 text-right">
+                              <CopyButton value={replayCurl} label="Copy replay" className="text-xs" />
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

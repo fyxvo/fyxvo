@@ -17,19 +17,27 @@ export function NavProgress() {
     if (currentRoute === prevRoute.current) return;
     prevRoute.current = currentRoute;
 
-    // Complete any in-progress animation
-    setProgress(100);
-    setVisible(true);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    timerRef.current = setTimeout(() => {
-      setVisible(false);
-      setProgress(0);
-    }, 300);
+    const timer = timerRef.current;
+    const interval = intervalRef.current;
+    if (timer) clearTimeout(timer);
+    if (interval) clearInterval(interval);
 
+    // Complete any in-progress animation via microtask to avoid sync setState in effect
+    const t = setTimeout(() => {
+      setProgress(100);
+      setVisible(true);
+      timerRef.current = setTimeout(() => {
+        setVisible(false);
+        setProgress(0);
+      }, 300);
+    }, 0);
+    timerRef.current = t;
+
+    const capturedInterval = intervalRef.current;
     return () => {
+      clearTimeout(t);
       if (timerRef.current) clearTimeout(timerRef.current);
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (capturedInterval) clearInterval(capturedInterval);
     };
   }, [pathname, searchParams]);
 

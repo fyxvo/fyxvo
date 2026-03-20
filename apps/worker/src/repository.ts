@@ -528,6 +528,49 @@ export class PrismaWorkerRepository implements WorkerRepository {
       }
     });
   }
+
+  async countRecentUnhealthySnapshots(serviceName: string, windowMinutes: number): Promise<number> {
+    const since = new Date(Date.now() - windowMinutes * 60 * 1000);
+    const count = await this.prisma.serviceHealthSnapshot.count({
+      where: {
+        serviceName,
+        status: { not: "healthy" },
+        checkedAt: { gte: since }
+      }
+    });
+    return count;
+  }
+
+  async openIncident(input: {
+    readonly serviceName: string;
+    readonly severity: string;
+    readonly description: string;
+  }): Promise<string> {
+    const incident = await this.prisma.incident.create({
+      data: {
+        serviceName: input.serviceName,
+        severity: input.severity,
+        description: input.description
+      }
+    });
+    return incident.id;
+  }
+
+  async resolveIncident(incidentId: string): Promise<void> {
+    await this.prisma.incident.update({
+      where: { id: incidentId },
+      data: { resolvedAt: new Date() }
+    });
+  }
+
+  async findOpenIncident(serviceName: string): Promise<{ id: string } | null> {
+    const incident = await this.prisma.incident.findFirst({
+      where: { serviceName, resolvedAt: null },
+      select: { id: true },
+      orderBy: { startedAt: "desc" }
+    });
+    return incident;
+  }
 }
 
 export function deriveNodeStatus(input: {

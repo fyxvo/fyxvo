@@ -10,7 +10,7 @@ import {
   Notice,
 } from "@fyxvo/ui";
 import { getStatusSnapshot } from "../../lib/server-status";
-import { getServiceHealthHistory } from "../../lib/api";
+import { getServiceHealthHistory, getIncidents } from "../../lib/api";
 import { webEnv } from "../../lib/env";
 import { formatDuration, shortenAddress } from "../../lib/format";
 import { liveDevnetState } from "../../lib/live-state";
@@ -34,9 +34,10 @@ function percentage(value?: number) {
 }
 
 export default async function StatusPage() {
-  const [status, serviceHealth] = await Promise.all([
+  const [status, serviceHealth, incidents] = await Promise.all([
     getStatusSnapshot(),
-    getServiceHealthHistory().catch(() => null)
+    getServiceHealthHistory().catch(() => null),
+    getIncidents().catch(() => [])
   ]);
   const readiness = status.apiStatus.protocolReadiness;
   const gatewayMetrics = status.gatewayStatus.metrics;
@@ -473,21 +474,39 @@ export default async function StatusPage() {
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>
             <CardTitle>Incident history</CardTitle>
-            <CardDescription>Past incidents and operational notes for the devnet private alpha.</CardDescription>
+            <CardDescription>Service incidents automatically detected by the monitoring worker.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="rounded-[1.5rem] border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium text-[var(--fyxvo-text)]">Devnet Private Alpha Launch</div>
-                  <Badge tone="success">resolved</Badge>
-                </div>
-                <p className="mt-1 text-xs text-[var(--fyxvo-text-muted)]">March 2026</p>
-                <p className="mt-3 text-sm text-[var(--fyxvo-text-soft)]">
-                  Initial devnet deployment with SOL funding path, wallet authentication, API key management, and funded relay access. No incidents recorded.
-                </p>
-              </div>
-              <p className="text-sm text-[var(--fyxvo-text-muted)]">No other incidents recorded during private alpha.</p>
+            <div className="space-y-3">
+              {incidents.length === 0 ? (
+                <p className="text-sm text-[var(--fyxvo-text-muted)]">No incidents recorded.</p>
+              ) : (
+                incidents.map((incident) => (
+                  <div
+                    key={incident.id}
+                    className="rounded-[1.5rem] border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="font-medium text-[var(--fyxvo-text)] capitalize">{incident.serviceName}</div>
+                      <Badge tone={incident.resolvedAt ? "success" : "warning"}>
+                        {incident.resolvedAt ? "resolved" : "open"}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 flex gap-2 text-xs text-[var(--fyxvo-text-muted)]">
+                      <span className="capitalize">{incident.severity}</span>
+                      <span>·</span>
+                      <span>{new Date(incident.startedAt).toLocaleString()}</span>
+                      {incident.resolvedAt && (
+                        <>
+                          <span>–</span>
+                          <span>{new Date(incident.resolvedAt).toLocaleString()}</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--fyxvo-text-soft)]">{incident.description}</p>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

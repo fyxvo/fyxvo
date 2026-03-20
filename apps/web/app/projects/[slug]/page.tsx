@@ -369,6 +369,81 @@ export default function ProjectPage({
         </Card>
       </section>
 
+      {/* Template-specific getting started */}
+      {project.templateType ? (
+        <section>
+          <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+            <CardHeader>
+              <CardTitle>Getting started</CardTitle>
+              <CardDescription>
+                {project.templateType === "defi"
+                  ? "Quick start for DeFi priority relay — use these snippets to send your first swap."
+                  : project.templateType === "indexing"
+                    ? "Quick start for on-chain indexing — stream program accounts with this example."
+                    : "Quick start for your Solana project — copy and run these examples."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {project.templateType === "defi" ? (
+                <>
+                  <p className="text-sm text-[var(--fyxvo-text-soft)]">
+                    Send a priority relay request. Requires a key with both <code className="rounded bg-[var(--fyxvo-panel-soft)] px-1 py-0.5 font-mono text-xs">rpc:request</code> and <code className="rounded bg-[var(--fyxvo-panel-soft)] px-1 py-0.5 font-mono text-xs">priority:relay</code> scopes.
+                  </p>
+                  <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                    <div className="flex items-center justify-between gap-2 pb-2">
+                      <span className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">curl — priority relay</span>
+                      <CopyButton value={`curl -X POST ${rpcEndpoint} \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -H "X-Fyxvo-Priority: true" \\\n  -d '{"jsonrpc":"2.0","id":1,"method":"getSlot","params":[]}'`} />
+                    </div>
+                    <pre className="overflow-x-auto font-mono text-xs leading-6 text-[var(--fyxvo-text-soft)]">{`curl -X POST ${rpcEndpoint} \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Fyxvo-Priority: true" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"getSlot","params":[]}'`}</pre>
+                  </div>
+                </>
+              ) : project.templateType === "indexing" ? (
+                <>
+                  <p className="text-sm text-[var(--fyxvo-text-soft)]">
+                    Fetch all accounts owned by a program. Requires a key with <code className="rounded bg-[var(--fyxvo-panel-soft)] px-1 py-0.5 font-mono text-xs">rpc:request</code> scope.
+                  </p>
+                  <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                    <div className="flex items-center justify-between gap-2 pb-2">
+                      <span className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">curl — getProgramAccounts</span>
+                      <CopyButton value={`curl -X POST ${rpcEndpoint} \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"jsonrpc":"2.0","id":1,"method":"getProgramAccounts","params":["YOUR_PROGRAM_ID",{"encoding":"base64","dataSlice":{"offset":0,"length":64}}]}'`} />
+                    </div>
+                    <pre className="overflow-x-auto font-mono text-xs leading-6 text-[var(--fyxvo-text-soft)]">{`curl -X POST ${rpcEndpoint} \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"getProgramAccounts",
+  "params":["YOUR_PROGRAM_ID",
+    {"encoding":"base64","dataSlice":{"offset":0,"length":64}}]}'`}</pre>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-[var(--fyxvo-text-soft)]">
+                    Send your first RPC request. Requires a key with <code className="rounded bg-[var(--fyxvo-panel-soft)] px-1 py-0.5 font-mono text-xs">rpc:request</code> scope.
+                  </p>
+                  <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                    <div className="flex items-center justify-between gap-2 pb-2">
+                      <span className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">curl — getSlot</span>
+                      <CopyButton value={`curl -X POST ${rpcEndpoint} \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"jsonrpc":"2.0","id":1,"method":"getSlot","params":[]}'`} />
+                    </div>
+                    <pre className="overflow-x-auto font-mono text-xs leading-6 text-[var(--fyxvo-text-soft)]">{`curl -X POST ${rpcEndpoint} \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"getSlot","params":[]}'`}</pre>
+                  </div>
+                </>
+              )}
+              <p className="text-xs text-[var(--fyxvo-text-muted)]">
+                Replace <code className="font-mono">YOUR_API_KEY</code> with a key from the API keys page. Keys must be active and have the correct scopes.
+              </p>
+            </CardContent>
+          </Card>
+        </section>
+      ) : null}
+
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>

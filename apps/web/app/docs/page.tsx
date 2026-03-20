@@ -93,84 +93,97 @@ export default function DocsPage() {
   -H "content-type: application/json" \\
   -d '{"walletAddress":"YOUR_WALLET"}'`;
 
-  const authVerifyCode = `# 1. Get challenge
+  const authVerifyCode = `# 1. Get challenge — returns the exact message to sign
 curl -X POST ${webEnv.apiBaseUrl}/v1/auth/challenge \\
   -H "content-type: application/json" \\
   -d '{"walletAddress":"YOUR_WALLET"}'
 
-# Response: { "challenge": "Sign this message: fyxvo:abc123...", "expiresAt": "..." }
+# Response: { "walletAddress": "...", "nonce": "...", "message": "fyxvo:YOUR_WALLET:NONCE" }
 
-# 2. Sign with wallet (browser, using @solana/wallet-adapter-base)
-const signed = await wallet.signMessage(Buffer.from(challenge));
+# 2. Sign the message with your wallet (browser, @solana/wallet-adapter-base)
+const encoded = new TextEncoder().encode(message);
+const signatureBytes = await wallet.signMessage(encoded);
+const signature = bs58.encode(signatureBytes);
 
 # 3. Verify signature and receive JWT
 curl -X POST ${webEnv.apiBaseUrl}/v1/auth/verify \\
   -H "content-type: application/json" \\
   -d '{
     "walletAddress": "YOUR_WALLET",
-    "signature": "<base58-signature>",
-    "challenge": "<challenge-string>"
+    "message": "<message-from-step-1>",
+    "signature": "<base58-signature>"
   }'
 
-# Response: { "token": "eyJ...", "expiresAt": "..." }`;
+# Response: { "token": "eyJ...", "user": { "id": "...", "walletAddress": "...", "role": "MEMBER" } }`;
 
-  const fundingCode = `# 1. Prepare the unsigned transaction
-curl -X POST ${webEnv.apiBaseUrl}/v1/projects/YOUR_PROJECT_ID/fund \\
-  -H "authorization: Bearer YOUR_JWT" \\
+  const fundingCode = [
+    `# 1. Prepare the unsigned funding transaction`,
+    `curl -X POST ${webEnv.apiBaseUrl}/v1/projects/YOUR_PROJECT_ID/funding/prepare \\`,
+    `  -H "authorization: Bearer YOUR_JWT" \\`,
+    `  -H "content-type: application/json" \\`,
+    `  -d '{"asset":"SOL","amountLamports":100000000,"funderWalletAddress":"YOUR_WALLET"}'`,
+    ``,
+    `# Response: { "item": { "id": "FUNDING_ID", "transactionBase64": "<unsigned-tx>", "amount": "100000000" } }`,
+    ``,
+    `# 2. Decode, sign, and broadcast (using @solana/web3.js)`,
+    `import { Transaction, Connection } from "@solana/web3.js";`,
+    ``,
+    `const fundingItem = response.item;`,
+    `const tx = Transaction.from(Buffer.from(fundingItem.transactionBase64, "base64"));`,
+    `const signed = await wallet.signTransaction(tx);`,
+    `const connection = new Connection("https://api.devnet.solana.com");`,
+    `const sig = await connection.sendRawTransaction(signed.serialize());`,
+    `await connection.confirmTransaction(sig, "confirmed");`,
+    ``,
+    `# 3. Verify the confirmed transaction with the API`,
+    `curl -X POST ${webEnv.apiBaseUrl}/v1/projects/YOUR_PROJECT_ID/funding/FUNDING_ID/verify \\`,
+    `  -H "authorization: Bearer YOUR_JWT" \\`,
+    `  -H "content-type: application/json" \\`,
+    `  -d '{"signature": "<tx-signature>"}'`,
+  ].join("\n");
+
+  const standardRpcCode = `# Standard relay — requires rpc:request scope
+curl -X POST ${webEnv.gatewayBaseUrl}/rpc \\
   -H "content-type: application/json" \\
-  -d '{"amountLamports": 100000000}'
+  -H "x-api-key: YOUR_API_KEY" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"getSlot","params":[]}'
 
-# Response: { "transaction": "<base64-encoded-unsigned-tx>", "expectedLamports": 100000000 }
-
-# 2. Decode, sign, and broadcast (using @solana/web3.js)
-import { Transaction, Connection } from "@solana/web3.js";
-
-const tx = Transaction.from(Buffer.from(transaction, "base64"));
-const signed = await wallet.signTransaction(tx);
-const sig = await connection.sendRawTransaction(signed.serialize());
-await connection.confirmTransaction(sig, "confirmed");
-
-# 3. Verify the confirmed transaction with the API
-curl -X POST ${webEnv.apiBaseUrl}/v1/projects/YOUR_PROJECT_ID/fund/verify \\
-  -H "authorization: Bearer YOUR_JWT" \\
+# Also accepts Authorization: Bearer
+curl -X POST ${webEnv.gatewayBaseUrl}/rpc \\
   -H "content-type: application/json" \\
-  -d '{"signature": "<tx-signature>"}'`;
+  -H "authorization: Bearer YOUR_API_KEY" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"getLatestBlockhash","params":[{"commitment":"confirmed"}]}'`;
 
-  const standardRpcCode = `curl -X POST ${webEnv.gatewayBaseUrl}/rpc \\
+  const priorityRelayCode = `# Priority relay — requires rpc:request AND priority:relay scopes
+curl -X POST ${webEnv.gatewayBaseUrl}/priority \\
   -H "content-type: application/json" \\
-  -H "x-api-key: YOUR_KEY" \\
-  -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}'`;
-
-  const priorityRelayCode = `curl -X POST ${webEnv.gatewayBaseUrl}/priority \\
-  -H "content-type: application/json" \\
-  -H "x-api-key: YOUR_KEY" \\
-  -d '{"jsonrpc":"2.0","id":1,"method":"getSlot"}'`;
+  -H "x-api-key: YOUR_PRIORITY_KEY" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"sendTransaction","params":["<base64-tx>",{"encoding":"base64","skipPreflight":false}]}'`;
 
   const analyticsOverviewCode = `curl ${webEnv.apiBaseUrl}/v1/analytics/overview \\
   -H "authorization: Bearer YOUR_JWT"
 
 # Response shape:
 # {
-#   "totalRequests": 14200,
-#   "successRate": 99.1,
-#   "averageLatencyMs": 42,
-#   "requestsLast24h": 1830,
-#   "activeProjects": 3
+#   "item": {
+#     "totals": { "projects": 3, "apiKeys": 5, "fundingRequests": 2, "requestLogs": 14200 },
+#     "latency": { "averageMs": 42, "maxMs": 312 },
+#     "requestsByService": [{ "service": "gateway", "count": 14200 }]
+#   }
 # }`;
 
-  const analyticsProjectCode = `curl ${webEnv.apiBaseUrl}/v1/analytics/projects/YOUR_PROJECT_ID \\
+  const analyticsProjectCode = `curl ${webEnv.apiBaseUrl}/v1/analytics/projects/YOUR_PROJECT_ID?range=24h \\
   -H "authorization: Bearer YOUR_JWT"
 
+# Range options: 1h | 6h | 24h | 7d | 30d (default: all time)
 # Response shape:
 # {
-#   "projectId": "YOUR_PROJECT_ID",
-#   "totalRequests": 4800,
-#   "successRate": 98.7,
-#   "methodBreakdown": [
-#     { "method": "getLatestBlockhash", "count": 2100, "avgLatencyMs": 38 },
-#     { "method": "sendTransaction",     "count": 1440, "avgLatencyMs": 61 }
-#   ],
-#   "recentErrors": []
+#   "item": {
+#     "totals": { "requestLogs": 4800, "apiKeys": 2, "fundingRequests": 1 },
+#     "latency": { "averageMs": 38, "maxMs": 210, "p95Ms": 95 },
+#     "statusCodes": [{ "statusCode": 200, "count": 4750 }, { "statusCode": 429, "count": 50 }],
+#     "recentRequests": [{ "route": "/rpc", "method": "POST", "statusCode": 200, "durationMs": 38 }]
+#   }
 # }`;
 
   const sdkInstallCode = `npm install @fyxvo/sdk
@@ -732,10 +745,13 @@ curl -s -X POST ${webEnv.gatewayBaseUrl}/priority \\
               id="sdk-reference"
               eyebrow="Section 8"
               title="SDK Reference"
-              description="@fyxvo/sdk TypeScript SDK — createFyxvoClient, client.rpc(), error types."
+              description="@fyxvo/sdk TypeScript SDK — planned for post-alpha release."
             />
             <div className="space-y-5">
-              <CodeBlock code={sdkInstallCode} label="Install" />
+              <Notice tone="neutral" title="SDK is not yet published">
+                {"@fyxvo/sdk"} is planned for post-alpha release. The examples below show the intended API. In the meantime, use the curl / fetch examples in the Standard RPC and Priority Relay sections — they are fully live today.
+              </Notice>
+              <CodeBlock code={sdkInstallCode} label="Install (coming soon)" />
               <CodeBlock code={sdkClientCode} label="Create a client" />
               <CodeBlock code={sdkRpcCode} label="client.rpc() — standard relay" />
               <CodeBlock code={sdkPriorityCode} label="client.priority() — priority relay" />

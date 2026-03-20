@@ -18,7 +18,7 @@ import { usePortal } from "../../components/portal-provider";
 import { ThemeToggle } from "../../components/theme-toggle";
 import { shortenAddress } from "../../lib/format";
 import { webEnv } from "../../lib/env";
-import { revokeApiKey } from "../../lib/api";
+import { revokeApiKey, getReferralStats, generateReferralCode } from "../../lib/api";
 
 function SettingRow({
   label,
@@ -124,6 +124,15 @@ export default function SettingsPage() {
   // Revoke key
   const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null);
 
+  // Archived projects
+  const [restoringProjectId, setRestoringProjectId] = useState<string | null>(null);
+
+  // Referral
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [referralStats, setReferralStats] = useState<{ totalClicks: number; conversions: number } | null>(null);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [referralCopied, setReferralCopied] = useState(false);
+
   const isAuthenticated = portal.walletPhase === "authenticated";
 
   async function patchProject(projectId: string, patch: Record<string, unknown>) {
@@ -177,12 +186,52 @@ export default function SettingsPage() {
     try { await revokeApiKey({ projectId, apiKeyId: keyId, token: portal.token }); await portal.refresh(); } finally { setRevokingKeyId(null); }
   }
 
+  // Load referral stats
+  useEffect(() => {
+    if (!portal.token || !isAuthenticated) return;
+    getReferralStats(portal.token)
+      .then((data) => {
+        setReferralCode(data.referralCode);
+        setReferralStats({ totalClicks: data.totalClicks, conversions: data.conversions });
+      })
+      .catch(() => undefined);
+  }, [portal.token, isAuthenticated]);
+
+  async function handleGenerateReferralCode() {
+    if (!portal.token) return;
+    setGeneratingCode(true);
+    try {
+      const data = await generateReferralCode(portal.token);
+      setReferralCode(data.referralCode);
+    } finally {
+      setGeneratingCode(false);
+    }
+  }
+
+  async function handleRestoreProject(projectId: string) {
+    if (!portal.token) return;
+    setRestoringProjectId(projectId);
+    try {
+      await fetch(new URL(`/v1/projects/${projectId}`, webEnv.apiBaseUrl), {
+        method: "PATCH",
+        headers: { "content-type": "application/json", authorization: `Bearer ${portal.token}` },
+        body: JSON.stringify({ archivedAt: null }),
+      });
+      await portal.refresh();
+    } finally {
+      setRestoringProjectId(null);
+    }
+  }
+
   function saveDensity(value: "comfortable" | "compact") {
     setDensity(value);
     localStorage.setItem("fyxvo-density", value);
   }
 
-  const totalRequests = portal.projects.reduce((sum, p) => sum + (p._count?.requestLogs ?? 0), 0);
+  const archivedProjects = portal.projects.filter((p) => p.archivedAt != null);
+  const activeProjects = portal.projects.filter((p) => p.archivedAt == null);
+
+  const totalRequests = activeProjects.reduce((sum, p) => sum + (p._count?.requestLogs ?? 0), 0);
   const totalKeys = portal.projects.reduce((sum, p) => sum + (p._count?.apiKeys ?? 0), 0);
   const estimatedLamports = totalRequests * 1000;
   const estimatedSol = (estimatedLamports / 1e9).toFixed(6);
@@ -236,14 +285,14 @@ export default function SettingsPage() {
         </SectionCard>
 
         {/* Projects overview */}
-        <SectionCard title="Projects" description="All your projects and their current state.">
-          {!isAuthenticated || portal.projects.length === 0 ? (
+        <SectionCard title="Projects" description="All your active projects and their current state.">
+          {!isAuthenticated || activeProjects.length === 0 ? (
             <Notice tone="neutral" title="No projects">
               <Link href="/dashboard" className="underline">Create your first project</Link> to get started.
             </Notice>
           ) : (
             <div className="space-y-3">
-              {portal.projects.map((project) => (
+              {activeProjects.map((project) => (
                 <div key={project.id} className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -292,6 +341,33 @@ export default function SettingsPage() {
             </div>
           )}
         </SectionCard>
+
+        {/* Archived projects */}
+        {isAuthenticated && archivedProjects.length > 0 ? (
+          <SectionCard title="Archived projects" description="Restore archived projects to make them active again.">
+            <div className="space-y-3">
+              {archivedProjects.map((project) => (
+                <div key={project.id} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-[var(--fyxvo-text)] truncate">{project.name}</p>
+                    <p className="text-xs text-[var(--fyxvo-text-muted)]">
+                      Archived {project.archivedAt ? new Date(project.archivedAt).toLocaleDateString() : ""}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void handleRestoreProject(project.id)}
+                    disabled={restoringProjectId === project.id}
+                    className="shrink-0"
+                  >
+                    {restoringProjectId === project.id ? "Restoring…" : "Restore"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        ) : null}
 
         {/* API Keys overview */}
         <SectionCard title="API Keys" description="All API keys across your projects.">
@@ -479,6 +555,60 @@ export default function SettingsPage() {
             Notifications appear in the bell icon in the dashboard header when thresholds are crossed.
             Low-balance checks run with each metrics aggregation cycle.
           </Notice>
+        </SectionCard>
+
+        {/* Referral */}
+        <SectionCard title="Referrals" description="Share your referral link and track invites.">
+          {!isAuthenticated ? (
+            <Notice tone="neutral" title="Connect a wallet to see your referral code" />
+          ) : (
+            <>
+              {referralCode ? (
+                <>
+                  <SettingRow label="Your referral link" description="Share this link to earn credit when new users sign up.">
+                    <div className="flex items-center gap-2">
+                      <code className="rounded bg-[var(--fyxvo-panel-soft)] border border-[var(--fyxvo-border)] px-2 py-1 text-xs font-mono text-[var(--fyxvo-text)]">
+                        {`${webEnv.siteUrl}/join/${referralCode}`}
+                      </code>
+                      <button
+                        onClick={() => {
+                          void navigator.clipboard.writeText(`${webEnv.siteUrl}/join/${referralCode}`);
+                          setReferralCopied(true);
+                          setTimeout(() => setReferralCopied(false), 2000);
+                        }}
+                        className="rounded border border-[var(--fyxvo-border)] px-2 py-1 text-xs text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)] transition-colors"
+                      >
+                        {referralCopied ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                  </SettingRow>
+                  {referralStats && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                        <p className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Total clicks</p>
+                        <p className="mt-1 font-display text-2xl font-semibold text-[var(--fyxvo-text)]">{referralStats.totalClicks}</p>
+                      </div>
+                      <div className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                        <p className="text-xs uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Conversions</p>
+                        <p className="mt-1 font-display text-2xl font-semibold text-[var(--fyxvo-text)]">{referralStats.conversions}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <SettingRow label="Referral code" description="Generate a unique code to start tracking invites.">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void handleGenerateReferralCode()}
+                    disabled={generatingCode}
+                  >
+                    {generatingCode ? "Generating…" : "Generate referral code"}
+                  </Button>
+                </SettingRow>
+              )}
+            </>
+          )}
         </SectionCard>
 
         {/* Appearance */}

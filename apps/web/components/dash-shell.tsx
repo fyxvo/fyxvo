@@ -218,18 +218,41 @@ export function DashShell({ children }: { readonly children: React.ReactNode }) 
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-6xl px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:pb-8">
             {children}
           </div>
         </main>
       </div>
 
-      {/* Floating Assistant Button — mobile only */}
-      <div className="fixed bottom-6 right-6 z-40 lg:hidden">
-        <Link href="/assistant" className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-500 shadow-lg shadow-brand-500/25 text-white hover:bg-brand-400 transition-colors" aria-label="Open AI Assistant">
-          <SparklesIcon className="h-5 w-5" />
-        </Link>
-      </div>
+      {/* Mobile bottom navigation bar */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)]/95 backdrop-blur lg:hidden">
+        {([
+          { href: "/dashboard", label: "Dashboard", icon: GaugeIcon },
+          { href: "/projects", label: "Projects", icon: FolderIcon },
+          { href: "/funding", label: "Funding", icon: FundingIcon },
+          { href: "/analytics", label: "Analytics", icon: ChartIcon },
+          { href: "/assistant", label: "Assistant", icon: SparklesIcon },
+        ] as const).map((item) => {
+          const projectHref = portal.selectedProject ? `/projects/${portal.selectedProject.slug}` : "/projects/solstice-labs";
+          const href = item.href === "/projects" ? projectHref : item.href;
+          const active = isActive(pathname, item.href);
+          return (
+            <Link
+              key={item.href}
+              href={href}
+              className={cn(
+                "flex flex-1 flex-col items-center gap-0.5 px-1 py-2.5 text-[10px] font-medium transition-colors",
+                active
+                  ? "text-[var(--fyxvo-brand)]"
+                  : "text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)]"
+              )}
+            >
+              <item.icon className="h-5 w-5 shrink-0" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
       {/* Command palette — fixed position, renders on top of everything */}
       <CommandPalette />
