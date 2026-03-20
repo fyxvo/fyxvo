@@ -32,13 +32,19 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@prisma/client",
+      "@prisma/engines",
       "@stellar/stellar-sdk",
+      "bigint-buffer",
       "blake-hash",
+      "bufferutil",
       "esbuild",
+      "msgpackr-extract",
       "prisma",
       "protobufjs",
+      "sharp",
       "tiny-secp256k1",
-      "usb"
+      "usb",
+      "utf-8-validate"
     ]
   },
   "devDependencies": {
