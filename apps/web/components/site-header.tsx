@@ -15,6 +15,7 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/docs", label: "Docs" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/enterprise", label: "Enterprise" },
   { href: "/status", label: "Status" },
 ] as const;
 

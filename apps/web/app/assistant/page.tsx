@@ -6,6 +6,7 @@ import { WalletConnectButton } from "../../components/wallet-connect-button";
 import { PageHeader } from "../../components/page-header";
 import { usePortal } from "../../components/portal-provider";
 import { webEnv } from "../../lib/env";
+import { getAssistantRateLimitStatus } from "../../lib/api";
 
 interface Message {
   role: "user" | "assistant";
@@ -85,6 +86,7 @@ export default function AssistantPage() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [rateLimitStatus, setRateLimitStatus] = useState<{ messagesUsedThisHour: number; limit: number } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -111,6 +113,16 @@ export default function AssistantPage() {
     setMessages([]);
     try { localStorage.removeItem(HISTORY_KEY); } catch { /* ignore */ }
   }, []);
+
+  const isAuthenticated = portal.walletPhase === "authenticated";
+
+  // Load rate limit status when authenticated
+  useEffect(() => {
+    if (!portal.token || !isAuthenticated) return;
+    getAssistantRateLimitStatus(portal.token)
+      .then((s) => setRateLimitStatus({ messagesUsedThisHour: s.messagesUsedThisHour, limit: s.limit }))
+      .catch(() => undefined);
+  }, [portal.token, isAuthenticated, messages.length]);
 
   function copyMessage(content: string, idx: number) {
     void navigator.clipboard.writeText(content);
@@ -215,8 +227,6 @@ export default function AssistantPage() {
       void sendMessage(input);
     }
   }
-
-  const isAuthenticated = portal.walletPhase === "authenticated";
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col space-y-0 -mt-8 -mx-4 sm:-mx-6 lg:-mx-8">
@@ -332,6 +342,23 @@ export default function AssistantPage() {
       {/* Input area */}
       <div className="shrink-0 border-t border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)]/95 backdrop-blur px-4 py-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl">
+          {rateLimitStatus && isAuthenticated && (
+            <div className="mb-2 flex items-center justify-end gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className="h-1.5 w-24 rounded-full bg-[var(--fyxvo-border)]">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      rateLimitStatus.messagesUsedThisHour >= rateLimitStatus.limit * 0.8 ? "bg-amber-500" : "bg-brand-500"
+                    }`}
+                    style={{ width: `${Math.min(100, (rateLimitStatus.messagesUsedThisHour / rateLimitStatus.limit) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-xs text-[var(--fyxvo-text-muted)]">
+                  {rateLimitStatus.messagesUsedThisHour}/{rateLimitStatus.limit} this hour
+                </span>
+              </div>
+            </div>
+          )}
           <div className="flex items-end gap-3 rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-3 focus-within:border-brand-500/50">
             <textarea
               ref={inputRef}

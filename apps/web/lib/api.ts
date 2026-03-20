@@ -492,6 +492,75 @@ export async function generateReferralCode(token: string) {
   return requestApi<{ referralCode: string }>("/v1/referral/generate", { method: "POST" }, token);
 }
 
+export async function getNotificationPreferences(token: string) {
+  return requestApi<{
+    notifyProjectActivation: boolean;
+    notifyApiKeyEvents: boolean;
+    notifyFundingConfirmed: boolean;
+    notifyLowBalance: boolean;
+    notifyDailyAlert: boolean;
+    notifyWeeklySummary: boolean;
+    notifyReferralConversion: boolean;
+  }>("/v1/notifications/preferences", undefined, token);
+}
+
+export async function updateNotificationPreferences(
+  prefs: Partial<{
+    notifyProjectActivation: boolean;
+    notifyApiKeyEvents: boolean;
+    notifyFundingConfirmed: boolean;
+    notifyLowBalance: boolean;
+    notifyDailyAlert: boolean;
+    notifyWeeklySummary: boolean;
+    notifyReferralConversion: boolean;
+  }>,
+  token: string
+) {
+  return requestApi<{ success: boolean }>("/v1/notifications/preferences", { method: "PATCH", body: JSON.stringify(prefs) }, token);
+}
+
+export async function getAssistantRateLimitStatus(token: string) {
+  return requestApi<{ messagesUsedThisHour: number; messagesRemainingThisHour: number; limit: number; windowResetAt: string }>("/v1/assistant/rate-limit-status", undefined, token);
+}
+
+export async function listWebhooks(projectId: string, token: string) {
+  return requestApi<{ items: Array<{ id: string; url: string; events: string[]; secret: string; active: boolean; lastTriggeredAt: string | null; createdAt: string }> }>(`/v1/projects/${projectId}/webhooks`, undefined, token);
+}
+
+export async function createWebhook(projectId: string, input: { url: string; events: string[] }, token: string) {
+  return requestApi<{ item: { id: string; url: string; events: string[]; secret: string; active: boolean; lastTriggeredAt: string | null; createdAt: string } }>(`/v1/projects/${projectId}/webhooks`, { method: "POST", body: JSON.stringify(input) }, token);
+}
+
+export async function deleteWebhook(projectId: string, webhookId: string, token: string) {
+  return fetch(new URL(`/v1/projects/${projectId}/webhooks/${webhookId}`, webEnv.apiBaseUrl), {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+export async function testWebhook(projectId: string, webhookId: string, token: string) {
+  return requestApi<{ success: boolean; statusCode?: number; error?: string }>(`/v1/projects/${projectId}/webhooks/${webhookId}/test`, { method: "POST" }, token);
+}
+
+export async function listProjectMembers(projectId: string, token: string) {
+  return requestApi<{ items: Array<{ id: string; userId: string; role: string; invitedAt: string; acceptedAt: string | null; user: { walletAddress: string; displayName: string } }> }>(`/v1/projects/${projectId}/members`, undefined, token);
+}
+
+export async function inviteProjectMember(projectId: string, walletAddress: string, token: string) {
+  return requestApi<{ item: unknown }>(`/v1/projects/${projectId}/members/invite`, { method: "POST", body: JSON.stringify({ walletAddress }) }, token);
+}
+
+export async function removeProjectMember(projectId: string, memberId: string, token: string) {
+  return fetch(new URL(`/v1/projects/${projectId}/members/${memberId}`, webEnv.apiBaseUrl), {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+export async function submitEnterpriseInterest(input: { companyName: string; contactEmail: string; estimatedMonthlyReqs: string; useCase: string }) {
+  return requestApi<{ success: boolean }>("/v1/enterprise/interest", { method: "POST", body: JSON.stringify(input) });
+}
+
 export function isPortalApiError(error: unknown): error is PortalApiError {
   return error instanceof PortalApiError;
 }

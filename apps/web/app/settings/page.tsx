@@ -18,7 +18,7 @@ import { usePortal } from "../../components/portal-provider";
 import { ThemeToggle } from "../../components/theme-toggle";
 import { shortenAddress } from "../../lib/format";
 import { webEnv } from "../../lib/env";
-import { revokeApiKey, getReferralStats, generateReferralCode } from "../../lib/api";
+import { revokeApiKey, getReferralStats, generateReferralCode, getNotificationPreferences, updateNotificationPreferences, listWebhooks, createWebhook, deleteWebhook, listProjectMembers, inviteProjectMember, removeProjectMember } from "../../lib/api";
 
 function SettingRow({
   label,
@@ -116,6 +116,8 @@ export default function SettingsPage() {
   const [projectNotes, setProjectNotes] = useState(portal.selectedProject?.notes ?? "");
   const [projectStarred, setProjectStarred] = useState(portal.selectedProject?.starred ?? false);
   const [projectGithubUrl, setProjectGithubUrl] = useState(portal.selectedProject?.githubUrl ?? "");
+  const [projectIsPublic, setProjectIsPublic] = useState(portal.selectedProject?.isPublic ?? false);
+  const [projectPublicSlug, setProjectPublicSlug] = useState(portal.selectedProject?.publicSlug ?? "");
   const [projectFieldsSaving, setProjectFieldsSaving] = useState(false);
 
   // Rename project
@@ -129,11 +131,39 @@ export default function SettingsPage() {
   // Archived projects
   const [restoringProjectId, setRestoringProjectId] = useState<string | null>(null);
 
+  // Notification preferences
+  const [notifPrefs, setNotifPrefs] = useState<{
+    notifyProjectActivation: boolean;
+    notifyApiKeyEvents: boolean;
+    notifyFundingConfirmed: boolean;
+    notifyLowBalance: boolean;
+    notifyDailyAlert: boolean;
+    notifyWeeklySummary: boolean;
+    notifyReferralConversion: boolean;
+  } | null>(null);
+  const [notifPrefsSaving, setNotifPrefsSaving] = useState<string | null>(null);
+
   // Referral
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralStats, setReferralStats] = useState<{ totalClicks: number; conversions: number } | null>(null);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
+
+  // Webhooks
+  const [webhooks, setWebhooks] = useState<Array<{ id: string; url: string; events: string[]; secret: string; active: boolean; lastTriggeredAt: string | null; createdAt: string }>>([]);
+  const [webhooksLoaded, setWebhooksLoaded] = useState(false);
+  const [newWebhookUrl, setNewWebhookUrl] = useState("");
+  const [newWebhookEvents, setNewWebhookEvents] = useState<string[]>(["funding.confirmed"]);
+  const [webhookSaving, setWebhookSaving] = useState(false);
+  const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
+  const [deletingWebhookId, setDeletingWebhookId] = useState<string | null>(null);
+
+  // Team members
+  const [members, setMembers] = useState<Array<{ id: string; userId: string; role: string; invitedAt: string; acceptedAt: string | null; user: { walletAddress: string; displayName: string } }>>([]);
+  const [membersLoaded, setMembersLoaded] = useState(false);
+  const [inviteWallet, setInviteWallet] = useState("");
+  const [inviteSaving, setInviteSaving] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   const isAuthenticated = portal.walletPhase === "authenticated";
 
@@ -165,6 +195,8 @@ export default function SettingsPage() {
         notes: projectNotes || null,
         starred: projectStarred,
         githubUrl: projectGithubUrl || null,
+        isPublic: projectIsPublic,
+        publicSlug: projectIsPublic && projectPublicSlug ? projectPublicSlug.trim() : null,
       });
       await portal.refresh();
     } finally { setProjectFieldsSaving(false); }
@@ -193,7 +225,7 @@ export default function SettingsPage() {
     try { await revokeApiKey({ projectId, apiKeyId: keyId, token: portal.token }); await portal.refresh(); } finally { setRevokingKeyId(null); }
   }
 
-  // Load referral stats
+  // Load referral stats + notification prefs
   useEffect(() => {
     if (!portal.token || !isAuthenticated) return;
     getReferralStats(portal.token)
@@ -202,7 +234,21 @@ export default function SettingsPage() {
         setReferralStats({ totalClicks: data.totalClicks, conversions: data.conversions });
       })
       .catch(() => undefined);
+    getNotificationPreferences(portal.token)
+      .then((prefs) => setNotifPrefs(prefs))
+      .catch(() => undefined);
   }, [portal.token, isAuthenticated]);
+
+  useEffect(() => {
+    if (!portal.token || !portal.selectedProject || !isAuthenticated) return;
+    const projectId = portal.selectedProject.id;
+    listWebhooks(projectId, portal.token)
+      .then((data) => { setWebhooks(data.items); setWebhooksLoaded(true); })
+      .catch(() => setWebhooksLoaded(true));
+    listProjectMembers(projectId, portal.token)
+      .then((data) => { setMembers(data.items); setMembersLoaded(true); })
+      .catch(() => setMembersLoaded(true));
+  }, [portal.token, portal.selectedProject, isAuthenticated]);
 
   async function handleGenerateReferralCode() {
     if (!portal.token) return;
@@ -212,6 +258,68 @@ export default function SettingsPage() {
       setReferralCode(data.referralCode);
     } finally {
       setGeneratingCode(false);
+    }
+  }
+
+  const WEBHOOK_EVENT_OPTIONS = ["funding.confirmed", "apikey.created", "apikey.revoked", "balance.low", "project.activated"] as const;
+
+  async function handleCreateWebhook() {
+    if (!portal.token || !portal.selectedProject || !newWebhookUrl || newWebhookEvents.length === 0) return;
+    setWebhookSaving(true);
+    try {
+      const data = await createWebhook(portal.selectedProject.id, { url: newWebhookUrl, events: newWebhookEvents }, portal.token);
+      setWebhooks((prev) => [data.item, ...prev]);
+      setWebhookSecret(data.item.secret);
+      setNewWebhookUrl("");
+    } finally {
+      setWebhookSaving(false);
+    }
+  }
+
+  async function handleDeleteWebhook(webhookId: string) {
+    if (!portal.token || !portal.selectedProject) return;
+    setDeletingWebhookId(webhookId);
+    try {
+      await deleteWebhook(portal.selectedProject.id, webhookId, portal.token);
+      setWebhooks((prev) => prev.filter((w) => w.id !== webhookId));
+    } finally {
+      setDeletingWebhookId(null);
+    }
+  }
+
+  async function handleInviteMember() {
+    if (!portal.token || !portal.selectedProject || !inviteWallet) return;
+    setInviteSaving(true);
+    try {
+      await inviteProjectMember(portal.selectedProject.id, inviteWallet, portal.token);
+      const data = await listProjectMembers(portal.selectedProject.id, portal.token);
+      setMembers(data.items);
+      setInviteWallet("");
+    } finally {
+      setInviteSaving(false);
+    }
+  }
+
+  async function handleRemoveMember(memberId: string) {
+    if (!portal.token || !portal.selectedProject) return;
+    setRemovingMemberId(memberId);
+    try {
+      await removeProjectMember(portal.selectedProject.id, memberId, portal.token);
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+    } finally {
+      setRemovingMemberId(null);
+    }
+  }
+
+  async function toggleNotifPref(key: keyof NonNullable<typeof notifPrefs>) {
+    if (!portal.token || !notifPrefs) return;
+    const next = { ...notifPrefs, [key]: !notifPrefs[key] };
+    setNotifPrefs(next);
+    setNotifPrefsSaving(key);
+    try {
+      await updateNotificationPreferences({ [key]: next[key] }, portal.token);
+    } finally {
+      setNotifPrefsSaving(null);
     }
   }
 
@@ -583,6 +691,36 @@ export default function SettingsPage() {
               className="h-9 text-sm w-full max-w-xs"
             />
           </SettingRow>
+          <SettingRow label="Public profile" description="Make this project's stats visible without authentication.">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={projectIsPublic}
+                  onClick={() => setProjectIsPublic(!projectIsPublic)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    projectIsPublic ? "bg-brand-500" : "bg-[var(--fyxvo-border-strong)]"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                      projectIsPublic ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+                <span className="text-xs text-[var(--fyxvo-text-muted)]">{projectIsPublic ? "Public" : "Private"}</span>
+              </div>
+              {projectIsPublic && (
+                <Input
+                  value={projectPublicSlug}
+                  onChange={(e) => setProjectPublicSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                  placeholder="public-slug"
+                  className="h-9 text-sm font-mono w-full max-w-xs"
+                />
+              )}
+            </div>
+          </SettingRow>
           <SettingRow label="" description="">
             <Button variant="secondary" size="sm" onClick={() => void saveProjectFields()} disabled={projectFieldsSaving || !portal.selectedProject || !portal.token}>
               {projectFieldsSaving ? "Saving…" : "Save project fields"}
@@ -594,6 +732,101 @@ export default function SettingsPage() {
             ) : <span className="text-sm text-[var(--fyxvo-text-muted)]">No project selected</span>}
           </SettingRow>
         </SectionCard>
+
+        {/* Webhooks */}
+        {isAuthenticated && portal.selectedProject ? (
+          <SectionCard title="Webhooks" description="Receive HTTP callbacks when key events happen in your project.">
+            {webhooksLoaded && webhooks.length > 0 ? (
+              <div className="space-y-2">
+                {webhooks.map((wh) => (
+                  <div key={wh.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-sm text-[var(--fyxvo-text)] truncate">{wh.url}</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {wh.events.map((e) => (
+                          <span key={e} className="rounded border border-[var(--fyxvo-border)] px-1.5 py-0.5 text-xs text-[var(--fyxvo-text-muted)]">{e}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <Button size="sm" variant="danger" className="shrink-0 text-xs" disabled={deletingWebhookId === wh.id} onClick={() => void handleDeleteWebhook(wh.id)}>
+                      {deletingWebhookId === wh.id ? "…" : "Remove"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : webhooksLoaded ? (
+              <p className="text-sm text-[var(--fyxvo-text-muted)]">No webhooks configured.</p>
+            ) : (
+              <p className="text-sm text-[var(--fyxvo-text-muted)]">Loading…</p>
+            )}
+            {webhookSecret && (
+              <Notice tone="success" title="Webhook secret (shown once)">
+                <code className="block font-mono text-xs break-all">{webhookSecret}</code>
+                <p className="mt-1 text-xs">Save this now. It will not be shown again.</p>
+              </Notice>
+            )}
+            <div className="border-t border-[var(--fyxvo-border)] pt-4 space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Add webhook</p>
+              <Input value={newWebhookUrl} onChange={(e) => setNewWebhookUrl(e.target.value)} placeholder="https://your-server.com/webhook" type="url" className="h-9 text-sm" />
+              <div className="flex flex-wrap gap-2">
+                {WEBHOOK_EVENT_OPTIONS.map((ev) => (
+                  <button
+                    key={ev}
+                    type="button"
+                    onClick={() => setNewWebhookEvents((prev) => prev.includes(ev) ? prev.filter((x) => x !== ev) : [...prev, ev])}
+                    className={`rounded-lg border px-2 py-1 text-xs font-medium transition-colors ${
+                      newWebhookEvents.includes(ev)
+                        ? "border-brand-500/50 bg-brand-500/10 text-[var(--fyxvo-text)]"
+                        : "border-[var(--fyxvo-border)] text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)]"
+                    }`}
+                  >
+                    {ev}
+                  </button>
+                ))}
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => void handleCreateWebhook()} disabled={webhookSaving || !newWebhookUrl || newWebhookEvents.length === 0}>
+                {webhookSaving ? "Adding…" : "Add webhook"}
+              </Button>
+            </div>
+          </SectionCard>
+        ) : null}
+
+        {/* Team members */}
+        {isAuthenticated && portal.selectedProject && portal.selectedProject.ownerId === portal.user?.id ? (
+          <SectionCard title="Team" description="Invite team members to collaborate on this project.">
+            {membersLoaded && members.length > 0 ? (
+              <div className="space-y-2">
+                {members.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-[var(--fyxvo-text)]">{m.user.displayName}</p>
+                      <p className="font-mono text-xs text-[var(--fyxvo-text-muted)]">{shortenAddress(m.user.walletAddress, 6, 6)}</p>
+                      <p className="text-xs text-[var(--fyxvo-text-muted)]">
+                        {m.acceptedAt ? "Accepted" : "Pending"} · {m.role}
+                      </p>
+                    </div>
+                    <Button size="sm" variant="danger" className="shrink-0 text-xs" disabled={removingMemberId === m.id} onClick={() => void handleRemoveMember(m.id)}>
+                      {removingMemberId === m.id ? "…" : "Remove"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : membersLoaded ? (
+              <p className="text-sm text-[var(--fyxvo-text-muted)]">No team members yet.</p>
+            ) : (
+              <p className="text-sm text-[var(--fyxvo-text-muted)]">Loading…</p>
+            )}
+            <div className="border-t border-[var(--fyxvo-border)] pt-4 space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Invite by wallet address</p>
+              <div className="flex items-center gap-2">
+                <Input value={inviteWallet} onChange={(e) => setInviteWallet(e.target.value)} placeholder="Wallet address (base58)" className="h-9 text-sm font-mono flex-1" />
+                <Button variant="secondary" size="sm" onClick={() => void handleInviteMember()} disabled={inviteSaving || !inviteWallet}>
+                  {inviteSaving ? "Inviting…" : "Invite"}
+                </Button>
+              </div>
+            </div>
+          </SectionCard>
+        ) : null}
 
         {/* Notifications */}
         <SectionCard title="Notifications" description="Configure automatic alerts for your project.">
@@ -613,6 +846,43 @@ export default function SettingsPage() {
               </Button>
             </div>
           </SettingRow>
+          {notifPrefs && isAuthenticated ? (
+            <div className="space-y-3 pt-2 border-t border-[var(--fyxvo-border)]">
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Notification types</p>
+              {([
+                { key: "notifyProjectActivation", label: "Project activation", description: "When a project activates on-chain" },
+                { key: "notifyApiKeyEvents", label: "API key events", description: "Key created or revoked" },
+                { key: "notifyFundingConfirmed", label: "Funding confirmed", description: "SOL or USDC deposit confirmed" },
+                { key: "notifyLowBalance", label: "Low balance", description: "When SOL credits fall below your threshold" },
+                { key: "notifyDailyAlert", label: "Daily request alert", description: "Daily request count threshold crossed" },
+                { key: "notifyWeeklySummary", label: "Weekly summary", description: "Weekly digest of your project activity" },
+                { key: "notifyReferralConversion", label: "Referral conversion", description: "When a referral signs up" },
+              ] as const).map(({ key, label, description }) => (
+                <div key={key} className="flex items-center justify-between gap-4 py-1">
+                  <div>
+                    <p className="text-sm text-[var(--fyxvo-text)]">{label}</p>
+                    <p className="text-xs text-[var(--fyxvo-text-muted)]">{description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={notifPrefs[key]}
+                    disabled={notifPrefsSaving === key}
+                    onClick={() => void toggleNotifPref(key)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fyxvo-accent)] ${
+                      notifPrefs[key] ? "bg-brand-500" : "bg-[var(--fyxvo-border-strong)]"
+                    } ${notifPrefsSaving === key ? "opacity-50" : ""}`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                        notifPrefs[key] ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <Notice tone="neutral" title="How alerts work">
             Notifications appear in the bell icon in the dashboard header when thresholds are crossed.
             Low-balance checks run with each metrics aggregation cycle.

@@ -23,6 +23,7 @@ function buildNavEntries(selectedProjectSlug?: string | null): NavEntry[] {
     { label: "Docs", href: "/docs", description: "Quickstart, API reference, and integration guides" },
     { label: "Status", href: "/status", description: "Live service health and protocol readiness" },
     { label: "Pricing", href: "/pricing", description: "Request pricing and SOL funding mechanics" },
+    { label: "Enterprise", href: "/enterprise", description: "Dedicated capacity, custom SLAs, and team features" },
     { label: "Contact", href: "/contact", description: "Talk to the founder or submit feedback" },
   ];
 

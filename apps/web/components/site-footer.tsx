@@ -7,6 +7,7 @@ const productLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/docs", label: "Docs" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/enterprise", label: "Enterprise" },
   { href: "/status", label: "Status" },
   { href: "/contact", label: "Contact" },
   { href: "/changelog", label: "Changelog" },

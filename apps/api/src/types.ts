@@ -69,6 +69,8 @@ export interface UpdateProjectInput {
   readonly starred?: boolean;
   readonly notes?: string | null;
   readonly githubUrl?: string | null;
+  readonly isPublic?: boolean;
+  readonly publicSlug?: string | null;
 }
 
 export interface CreateNotificationInput {
@@ -484,10 +486,47 @@ export interface ReferralStats {
   readonly conversions: number;
 }
 
+export interface WebhookItem {
+  readonly id: string;
+  readonly projectId: string;
+  readonly url: string;
+  readonly events: string[];
+  readonly secret: string;
+  readonly active: boolean;
+  readonly lastTriggeredAt: string | null;
+  readonly createdAt: string;
+}
+
+export interface ProjectMemberItem {
+  readonly id: string;
+  readonly projectId: string;
+  readonly userId: string;
+  readonly role: string;
+  readonly invitedBy: string | null;
+  readonly invitedAt: string;
+  readonly acceptedAt: string | null;
+  readonly user: {
+    readonly walletAddress: string;
+    readonly displayName: string;
+  };
+}
+
+export interface NotificationPrefsUpdate {
+  readonly onboardingDismissed?: boolean;
+  readonly email?: string | null;
+  readonly notifyProjectActivation?: boolean;
+  readonly notifyApiKeyEvents?: boolean;
+  readonly notifyFundingConfirmed?: boolean;
+  readonly notifyLowBalance?: boolean;
+  readonly notifyDailyAlert?: boolean;
+  readonly notifyWeeklySummary?: boolean;
+  readonly notifyReferralConversion?: boolean;
+}
+
 export interface ApiRepository {
   findUserByWallet(walletAddress: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean; createdAt: Date } | null>;
   findUserById(userId: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean; createdAt: Date } | null>;
-  updateUser(userId: string, data: { onboardingDismissed?: boolean }): Promise<void>;
+  updateUser(userId: string, data: NotificationPrefsUpdate): Promise<void>;
   createOrRefreshWalletUser(
     walletAddress: string,
     authNonce: string
@@ -535,6 +574,19 @@ export interface ApiRepository {
   getReferralStats(userId: string): Promise<ReferralStats>;
   recordReferralClick(referralCode: string): Promise<{ referrerId: string } | null>;
   generateReferralCode(userId: string): Promise<string>;
+  countAssistantMessagesThisHour(userId: string, since: Date): Promise<number>;
+  listWebhooks(projectId: string): Promise<WebhookItem[]>;
+  createWebhook(input: { projectId: string; url: string; events: string[]; secret: string }): Promise<WebhookItem>;
+  findWebhook(webhookId: string, projectId: string): Promise<WebhookItem | null>;
+  deleteWebhook(webhookId: string, projectId: string): Promise<void>;
+  listProjectMembers(projectId: string): Promise<ProjectMemberItem[]>;
+  findProjectMember(projectId: string, userId: string): Promise<ProjectMemberItem | null>;
+  findProjectMemberById(memberId: string): Promise<ProjectMemberItem | null>;
+  createProjectMember(input: { projectId: string; userId: string; invitedBy: string }): Promise<ProjectMemberItem>;
+  acceptProjectMember(memberId: string): Promise<void>;
+  deleteProjectMember(memberId: string, projectId: string): Promise<void>;
+  findPublicProject(publicSlug: string): Promise<ProjectWithOwner | null>;
+  createEnterpriseInterest(input: { companyName: string; contactEmail: string; estimatedMonthlyReqs: string; useCase: string }): Promise<void>;
 }
 
 export interface ProjectCreationPreparation {

@@ -25,13 +25,16 @@ import type {
   MethodBreakdownItem,
   NetworkStats,
   NotificationItem,
+  NotificationPrefsUpdate,
   OperatorSummary,
   ProjectAnalytics,
+  ProjectMemberItem,
   ProjectWithOwner,
   RequestLogInput,
   SaveIdempotencyInput,
   ServiceHealthHistory,
   UpdateProjectInput,
+  WebhookItem,
   IncidentItem,
   ReferralStats
 } from "./types.js";
@@ -141,10 +144,20 @@ export class PrismaApiRepository implements ApiRepository {
     });
   }
 
-  async updateUser(userId: string, data: { onboardingDismissed?: boolean }): Promise<void> {
+  async updateUser(userId: string, data: NotificationPrefsUpdate): Promise<void> {
     await this.prisma.user.update({
       where: { id: userId },
-      data,
+      data: {
+        ...(data.onboardingDismissed !== undefined ? { onboardingDismissed: data.onboardingDismissed } : {}),
+        ...(data.email !== undefined ? { email: data.email } : {}),
+        ...(data.notifyProjectActivation !== undefined ? { notifyProjectActivation: data.notifyProjectActivation } : {}),
+        ...(data.notifyApiKeyEvents !== undefined ? { notifyApiKeyEvents: data.notifyApiKeyEvents } : {}),
+        ...(data.notifyFundingConfirmed !== undefined ? { notifyFundingConfirmed: data.notifyFundingConfirmed } : {}),
+        ...(data.notifyLowBalance !== undefined ? { notifyLowBalance: data.notifyLowBalance } : {}),
+        ...(data.notifyDailyAlert !== undefined ? { notifyDailyAlert: data.notifyDailyAlert } : {}),
+        ...(data.notifyWeeklySummary !== undefined ? { notifyWeeklySummary: data.notifyWeeklySummary } : {}),
+        ...(data.notifyReferralConversion !== undefined ? { notifyReferralConversion: data.notifyReferralConversion } : {}),
+      },
     });
   }
 
@@ -238,7 +251,9 @@ export class PrismaApiRepository implements ApiRepository {
         ...(input.environment !== undefined ? { environment: input.environment } : {}),
         ...(input.starred !== undefined ? { starred: input.starred } : {}),
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
-        ...(input.githubUrl !== undefined ? { githubUrl: input.githubUrl } : {})
+        ...(input.githubUrl !== undefined ? { githubUrl: input.githubUrl } : {}),
+        ...(input.isPublic !== undefined ? { isPublic: input.isPublic } : {}),
+        ...(input.publicSlug !== undefined ? { publicSlug: input.publicSlug } : {})
       },
       include: {
         owner: true,
@@ -1255,6 +1270,176 @@ export class PrismaApiRepository implements ApiRepository {
       data: { referralCode: code }
     });
     return code;
+  }
+
+  async countAssistantMessagesThisHour(userId: string, since: Date): Promise<number> {
+    return this.prisma.requestLog.count({
+      where: {
+        userId,
+        route: "/v1/assistant/chat",
+        createdAt: { gte: since },
+        statusCode: { lt: 400 },
+      }
+    });
+  }
+
+  async listWebhooks(projectId: string): Promise<WebhookItem[]> {
+    const rows = await this.prisma.webhook.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "desc" }
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      url: r.url,
+      events: r.events as string[],
+      secret: r.secret,
+      active: r.active,
+      lastTriggeredAt: r.lastTriggeredAt ? r.lastTriggeredAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async createWebhook(input: { projectId: string; url: string; events: string[]; secret: string }): Promise<WebhookItem> {
+    const r = await this.prisma.webhook.create({
+      data: {
+        projectId: input.projectId,
+        url: input.url,
+        events: input.events as PrismaNamespace.InputJsonValue,
+        secret: input.secret,
+      }
+    });
+    return {
+      id: r.id,
+      projectId: r.projectId,
+      url: r.url,
+      events: input.events,
+      secret: r.secret,
+      active: r.active,
+      lastTriggeredAt: r.lastTriggeredAt ? r.lastTriggeredAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    };
+  }
+
+  async findWebhook(webhookId: string, projectId: string): Promise<WebhookItem | null> {
+    const r = await this.prisma.webhook.findFirst({
+      where: { id: webhookId, projectId }
+    });
+    if (!r) return null;
+    return {
+      id: r.id,
+      projectId: r.projectId,
+      url: r.url,
+      events: r.events as string[],
+      secret: r.secret,
+      active: r.active,
+      lastTriggeredAt: r.lastTriggeredAt ? r.lastTriggeredAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    };
+  }
+
+  async deleteWebhook(webhookId: string, projectId: string): Promise<void> {
+    await this.prisma.webhook.deleteMany({ where: { id: webhookId, projectId } });
+  }
+
+  async listProjectMembers(projectId: string): Promise<ProjectMemberItem[]> {
+    const rows = await this.prisma.projectMember.findMany({
+      where: { projectId },
+      include: { user: { select: { walletAddress: true, displayName: true } } },
+      orderBy: { invitedAt: "asc" }
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      userId: r.userId,
+      role: r.role,
+      invitedBy: r.invitedBy ?? null,
+      invitedAt: r.invitedAt.toISOString(),
+      acceptedAt: r.acceptedAt ? r.acceptedAt.toISOString() : null,
+      user: { walletAddress: r.user.walletAddress, displayName: r.user.displayName },
+    }));
+  }
+
+  async findProjectMember(projectId: string, userId: string): Promise<ProjectMemberItem | null> {
+    const r = await this.prisma.projectMember.findFirst({
+      where: { projectId, userId },
+      include: { user: { select: { walletAddress: true, displayName: true } } }
+    });
+    if (!r) return null;
+    return {
+      id: r.id,
+      projectId: r.projectId,
+      userId: r.userId,
+      role: r.role,
+      invitedBy: r.invitedBy ?? null,
+      invitedAt: r.invitedAt.toISOString(),
+      acceptedAt: r.acceptedAt ? r.acceptedAt.toISOString() : null,
+      user: { walletAddress: r.user.walletAddress, displayName: r.user.displayName },
+    };
+  }
+
+  async findProjectMemberById(memberId: string): Promise<ProjectMemberItem | null> {
+    const r = await this.prisma.projectMember.findUnique({
+      where: { id: memberId },
+      include: { user: { select: { walletAddress: true, displayName: true } } }
+    });
+    if (!r) return null;
+    return {
+      id: r.id,
+      projectId: r.projectId,
+      userId: r.userId,
+      role: r.role,
+      invitedBy: r.invitedBy ?? null,
+      invitedAt: r.invitedAt.toISOString(),
+      acceptedAt: r.acceptedAt ? r.acceptedAt.toISOString() : null,
+      user: { walletAddress: r.user.walletAddress, displayName: r.user.displayName },
+    };
+  }
+
+  async createProjectMember(input: { projectId: string; userId: string; invitedBy: string }): Promise<ProjectMemberItem> {
+    const r = await this.prisma.projectMember.create({
+      data: { projectId: input.projectId, userId: input.userId, invitedBy: input.invitedBy },
+      include: { user: { select: { walletAddress: true, displayName: true } } }
+    });
+    return {
+      id: r.id,
+      projectId: r.projectId,
+      userId: r.userId,
+      role: r.role,
+      invitedBy: r.invitedBy ?? null,
+      invitedAt: r.invitedAt.toISOString(),
+      acceptedAt: r.acceptedAt ? r.acceptedAt.toISOString() : null,
+      user: { walletAddress: r.user.walletAddress, displayName: r.user.displayName },
+    };
+  }
+
+  async acceptProjectMember(memberId: string): Promise<void> {
+    await this.prisma.projectMember.update({
+      where: { id: memberId },
+      data: { acceptedAt: new Date() }
+    });
+  }
+
+  async deleteProjectMember(memberId: string, projectId: string): Promise<void> {
+    await this.prisma.projectMember.deleteMany({ where: { id: memberId, projectId } });
+  }
+
+  async findPublicProject(publicSlug: string): Promise<ProjectWithOwner | null> {
+    const project = await this.prisma.project.findFirst({
+      where: { publicSlug, isPublic: true },
+      include: {
+        owner: true,
+        _count: {
+          select: { apiKeys: true, requestLogs: true, fundingRequests: true }
+        }
+      }
+    });
+    if (!project) return null;
+    return mapProject(project);
+  }
+
+  async createEnterpriseInterest(input: { companyName: string; contactEmail: string; estimatedMonthlyReqs: string; useCase: string }): Promise<void> {
+    await this.prisma.enterpriseInterest.create({ data: input });
   }
 }
 

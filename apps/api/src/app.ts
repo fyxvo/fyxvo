@@ -93,6 +93,8 @@ const updateProjectSchema = z.object({
   starred: z.boolean().optional(),
   notes: z.string().trim().max(2000).nullable().optional(),
   githubUrl: z.string().url().max(256).nullable().optional(),
+  isPublic: z.boolean().optional(),
+  publicSlug: z.string().trim().min(3).max(64).regex(/^[a-z0-9-]+$/).nullable().optional(),
 });
 
 const createApiKeySchema = z.object({
@@ -781,6 +783,7 @@ export async function buildApiApp(input: {
 
   const updateMeSchema = z.object({
     onboardingDismissed: z.boolean().optional(),
+    email: z.string().email().max(256).nullable().optional(),
   });
 
   app.patch("/v1/me", async (request, reply) => {
@@ -791,9 +794,12 @@ export async function buildApiApp(input: {
       return reply.status(400).send({ error: "Invalid request", details: parsed.error.issues });
     }
 
-    const { onboardingDismissed } = parsed.data;
+    const { onboardingDismissed, email } = parsed.data;
 
-    await input.repository.updateUser(user.id, { ...(onboardingDismissed !== undefined ? { onboardingDismissed } : {}) });
+    await input.repository.updateUser(user.id, {
+      ...(onboardingDismissed !== undefined ? { onboardingDismissed } : {}),
+      ...(email !== undefined ? { email } : {}),
+    });
 
     return reply.send({ success: true });
   });
@@ -1087,7 +1093,9 @@ export async function buildApiApp(input: {
       ...(body.environment !== undefined ? { environment: body.environment } : {}),
       ...(body.starred !== undefined ? { starred: body.starred } : {}),
       ...(body.notes !== undefined ? { notes: body.notes } : {}),
-      ...(body.githubUrl !== undefined ? { githubUrl: body.githubUrl } : {})
+      ...(body.githubUrl !== undefined ? { githubUrl: body.githubUrl } : {}),
+      ...(body.isPublic !== undefined ? { isPublic: body.isPublic } : {}),
+      ...(body.publicSlug !== undefined ? { publicSlug: body.publicSlug } : {})
     };
 
     return {
@@ -1966,6 +1974,192 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
     } catch {
       return reply.status(500).send({ error: "Failed to fetch widget data" });
     }
+  });
+
+  // ── Rate limit status for assistant ─────────────────────────────────────
+
+  app.get("/v1/assistant/rate-limit-status", async (request) => {
+    const user = requireUser(request);
+    const hourStart = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000);
+    const count = await input.repository.countAssistantMessagesThisHour(user.id, hourStart);
+    const limit = 20;
+    return {
+      messagesUsedThisHour: count,
+      messagesRemainingThisHour: Math.max(0, limit - count),
+      limit,
+      windowResetAt: new Date(hourStart.getTime() + 3_600_000).toISOString(),
+    };
+  });
+
+  // ── Notification preferences ──────────────────────────────────────────────
+
+  const notifPrefsSchema = z.object({
+    notifyProjectActivation:  z.boolean().optional(),
+    notifyApiKeyEvents:        z.boolean().optional(),
+    notifyFundingConfirmed:    z.boolean().optional(),
+    notifyLowBalance:          z.boolean().optional(),
+    notifyDailyAlert:          z.boolean().optional(),
+    notifyWeeklySummary:       z.boolean().optional(),
+    notifyReferralConversion:  z.boolean().optional(),
+  });
+
+  app.get("/v1/notifications/preferences", async (request) => {
+    const user = requireUser(request);
+    const fullUser = await input.repository.findUserById(user.id);
+    if (!fullUser) throw new HttpError(404, "user_not_found", "User not found.");
+    return {
+      notifyProjectActivation:  (fullUser as Record<string, unknown>).notifyProjectActivation ?? true,
+      notifyApiKeyEvents:        (fullUser as Record<string, unknown>).notifyApiKeyEvents ?? true,
+      notifyFundingConfirmed:    (fullUser as Record<string, unknown>).notifyFundingConfirmed ?? true,
+      notifyLowBalance:          (fullUser as Record<string, unknown>).notifyLowBalance ?? true,
+      notifyDailyAlert:          (fullUser as Record<string, unknown>).notifyDailyAlert ?? true,
+      notifyWeeklySummary:       (fullUser as Record<string, unknown>).notifyWeeklySummary ?? false,
+      notifyReferralConversion:  (fullUser as Record<string, unknown>).notifyReferralConversion ?? true,
+    };
+  });
+
+  app.patch("/v1/notifications/preferences", async (request, reply) => {
+    const user = requireUser(request);
+    const parsed = notifPrefsSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "Invalid request" });
+    await input.repository.updateUser(user.id, parsed.data as Parameters<typeof input.repository.updateUser>[1]);
+    return { success: true };
+  });
+
+  // ── Webhooks ──────────────────────────────────────────────────────────────
+
+  const webhookSchema = z.object({
+    url: z.string().url().max(512),
+    events: z.array(z.enum(["funding.confirmed","apikey.created","apikey.revoked","balance.low","project.activated"])).min(1),
+  });
+
+  app.get("/v1/projects/:projectId/webhooks", async (request) => {
+    const user = requireUser(request);
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || !canAccessProject(user, project)) throw new HttpError(404, "project_not_found", "Project not found.");
+    return { items: await input.repository.listWebhooks(projectId) };
+  });
+
+  app.post("/v1/projects/:projectId/webhooks", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params);
+    const body = webhookSchema.parse(request.body);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || !canAccessProject(user, project)) throw new HttpError(404, "project_not_found", "Project not found.");
+    const secret = randomBytes(32).toString("hex");
+    const webhook = await input.repository.createWebhook({ projectId, url: body.url, events: body.events, secret });
+    return reply.status(201).send({ item: webhook });
+  });
+
+  app.delete("/v1/projects/:projectId/webhooks/:webhookId", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId, webhookId } = z.object({ projectId: z.string().uuid(), webhookId: z.string().uuid() }).parse(request.params);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || !canAccessProject(user, project)) throw new HttpError(404, "project_not_found", "Project not found.");
+    await input.repository.deleteWebhook(webhookId, projectId);
+    return reply.status(204).send();
+  });
+
+  app.post("/v1/projects/:projectId/webhooks/:webhookId/test", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId, webhookId } = z.object({ projectId: z.string().uuid(), webhookId: z.string().uuid() }).parse(request.params);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || !canAccessProject(user, project)) throw new HttpError(404, "project_not_found", "Project not found.");
+    const webhook = await input.repository.findWebhook(webhookId, projectId);
+    if (!webhook) throw new HttpError(404, "webhook_not_found", "Webhook not found.");
+    const payload = { event: "test", projectId, timestamp: new Date().toISOString(), data: { message: "This is a test webhook from Fyxvo." } };
+    const body = JSON.stringify(payload);
+    const sig = createHash("sha256").update(webhook.secret + body).digest("hex");
+    try {
+      const res = await fetch(webhook.url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-fyxvo-signature": `sha256=${sig}` },
+        body,
+        signal: AbortSignal.timeout(5000),
+      });
+      return reply.send({ success: res.ok, statusCode: res.status });
+    } catch (e) {
+      return reply.send({ success: false, error: e instanceof Error ? e.message : "Request failed" });
+    }
+  });
+
+  // ── Project members (team collaboration) ─────────────────────────────────
+
+  app.get("/v1/projects/:projectId/members", async (request) => {
+    const user = requireUser(request);
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || !canAccessProject(user, project)) throw new HttpError(404, "project_not_found", "Project not found.");
+    return { items: await input.repository.listProjectMembers(projectId) };
+  });
+
+  app.post("/v1/projects/:projectId/members/invite", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params);
+    const body = z.object({ walletAddress: z.string().min(32).max(44) }).parse(request.body);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || project.ownerId !== user.id) throw new HttpError(403, "forbidden", "Only the project owner can invite members.");
+    const invitee = await input.repository.findUserByWallet(body.walletAddress);
+    if (!invitee) throw new HttpError(404, "user_not_found", "No user found with that wallet address.");
+    const existing = await input.repository.findProjectMember(projectId, invitee.id);
+    if (existing) return reply.status(409).send({ error: "User is already a member or has a pending invitation." });
+    const member = await input.repository.createProjectMember({ projectId, userId: invitee.id, invitedBy: user.id });
+    return reply.status(201).send({ item: member });
+  });
+
+  app.patch("/v1/projects/:projectId/members/:memberId/accept", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId, memberId } = z.object({ projectId: z.string().uuid(), memberId: z.string().uuid() }).parse(request.params);
+    const member = await input.repository.findProjectMemberById(memberId);
+    if (!member || member.projectId !== projectId || member.userId !== user.id) throw new HttpError(404, "not_found", "Invitation not found.");
+    if (member.acceptedAt) return reply.send({ success: true, message: "Already accepted." });
+    await input.repository.acceptProjectMember(memberId);
+    return reply.send({ success: true });
+  });
+
+  app.delete("/v1/projects/:projectId/members/:memberId", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId, memberId } = z.object({ projectId: z.string().uuid(), memberId: z.string().uuid() }).parse(request.params);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || project.ownerId !== user.id) throw new HttpError(403, "forbidden", "Only the owner can remove members.");
+    await input.repository.deleteProjectMember(memberId, projectId);
+    return reply.status(204).send();
+  });
+
+  // ── Public project profile ────────────────────────────────────────────────
+
+  app.get("/v1/public/projects/:publicSlug", async (request, reply) => {
+    const { publicSlug } = z.object({ publicSlug: z.string() }).parse(request.params);
+    const project = await input.repository.findPublicProject(publicSlug);
+    if (!project) return reply.status(404).send({ error: "Not found" });
+    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const analytics = await input.repository.getProjectAnalytics(project.id, since7d).catch(() => null);
+    return serializeForJson({
+      id: project.id,
+      name: project.name,
+      displayName: project.displayName,
+      slug: project.slug,
+      publicSlug: project.publicSlug,
+      totalRequests: project._count?.requestLogs ?? 0,
+      avgLatencyMs: Math.round(analytics?.latency?.averageMs ?? 0),
+      requestVolume7d: (analytics as Record<string, unknown> | null)?.timeSeries ?? [],
+    });
+  });
+
+  // ── Enterprise interest ───────────────────────────────────────────────────
+
+  const enterpriseInterestSchema = z.object({
+    companyName: z.string().trim().min(1).max(256),
+    contactEmail: z.string().email().max(256),
+    estimatedMonthlyReqs: z.string().trim().min(1).max(128),
+    useCase: z.string().trim().min(1).max(2000),
+  });
+
+  app.post("/v1/enterprise/interest", async (request, reply) => {
+    const body = enterpriseInterestSchema.parse(request.body);
+    await input.repository.createEnterpriseInterest(body);
+    return reply.status(201).send({ success: true });
   });
 
   return app;

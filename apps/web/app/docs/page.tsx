@@ -5,6 +5,7 @@ import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Notic
 import { CopyButton } from "../../components/copy-button";
 import { PageHeader } from "../../components/page-header";
 import { SocialLinkButtons } from "../../components/social-links";
+import { ApiExplorer } from "../../components/api-explorer";
 import { webEnv } from "../../lib/env";
 import { PRICING_LAMPORTS } from "@fyxvo/config";
 
@@ -16,6 +17,7 @@ const NAV_SECTIONS = [
   { id: "standard-rpc", label: "Standard RPC", keywords: "rpc request jsonrpc endpoint gateway x-api-key getHealth getSlot" },
   { id: "priority-relay", label: "Priority Relay", keywords: "priority relay high throughput fast latency /priority scope" },
   { id: "analytics-api", label: "Analytics API", keywords: "analytics stats requests latency error rate monitoring project" },
+  { id: "api-explorer", label: "API Explorer", keywords: "try it interactive request curl live test endpoint" },
   { id: "sdk-reference", label: "SDK Reference", keywords: "sdk library reference types api endpoint paths" },
   { id: "rate-limits", label: "Rate Limits", keywords: "rate limit 429 throttle bandwidth quota scope" },
   { id: "troubleshooting", label: "Troubleshooting", keywords: "error debug fix 401 403 402 500 403 common issues" },
@@ -737,6 +739,17 @@ curl -s -X POST ${webEnv.gatewayBaseUrl}/priority \\
                 ))}
               </div>
             </div>
+          </section>
+
+          {/* ── API Explorer ────────────────────────────────────── */}
+          <section id="api-explorer">
+            <SectionHeading
+              id="api-explorer"
+              eyebrow="Interactive"
+              title="API Explorer"
+              description="Try live API endpoints directly from the docs. Paste your JWT token to test authenticated routes."
+            />
+            <ApiExplorer />
           </section>
 
           {/* ── SDK Reference ────────────────────────────────────── */}

@@ -38,6 +38,8 @@ export const previewProjects: PortalProject[] = [
     starred: true,
     notes: null,
     githubUrl: null,
+    isPublic: false,
+    publicSlug: null,
     archivedAt: null,
     owner,
     _count: {
@@ -63,6 +65,8 @@ export const previewProjects: PortalProject[] = [
     starred: false,
     notes: null,
     githubUrl: null,
+    isPublic: false,
+    publicSlug: null,
     archivedAt: null,
     owner,
     _count: {

@@ -24,6 +24,8 @@ export interface PortalProject {
   readonly starred: boolean;
   readonly notes: string | null;
   readonly githubUrl: string | null;
+  readonly isPublic: boolean;
+  readonly publicSlug: string | null;
   readonly archivedAt: string | null;
   readonly owner: PortalUser;
   readonly _count?: {

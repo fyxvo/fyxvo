@@ -8,6 +8,7 @@ import { getNetworkStats } from "../lib/api";
 import { formatDuration } from "../lib/format";
 import { liveDevnetState } from "../lib/live-state";
 import { AnimatedStat } from "../components/animated-stat";
+import { AnimatedTerminal } from "../components/animated-terminal";
 
 export default async function HomePage() {
   const [status, networkStats] = await Promise.all([
@@ -33,49 +34,56 @@ export default async function HomePage() {
       {/* Hero */}
       <section className="border-b border-[var(--fyxvo-border)] py-20 lg:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-3xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-md border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-sm text-brand-700 dark:text-brand-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
-              Solana devnet · Private alpha
+          <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 lg:items-center">
+            <div>
+              <div className="mb-6 inline-flex items-center gap-2 rounded-md border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-sm text-brand-700 dark:text-brand-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
+                Solana devnet · Private alpha
+              </div>
+
+              <h1 className="font-display text-5xl font-semibold leading-[1.06] tracking-tight text-[var(--fyxvo-text)] sm:text-6xl lg:text-5xl xl:text-6xl">
+                Funded RPC access for{" "}
+                <span className="fyxvo-text-gradient">Solana developers.</span>
+              </h1>
+
+              <p className="mt-6 max-w-xl text-lg leading-8 text-[var(--fyxvo-text-muted)]">
+                Activate a project on chain, fund it with SOL, issue an API key, and route real
+                devnet traffic through a managed relay. One flow. No mock endpoints.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <TrackedLinkButton
+                  href="/dashboard"
+                  eventName="landing_cta_clicked"
+                  eventSource="home-hero-dashboard"
+                  size="lg"
+                >
+                  Open dashboard
+                </TrackedLinkButton>
+                <TrackedLinkButton
+                  href="/docs"
+                  eventName="landing_cta_clicked"
+                  eventSource="home-hero-docs"
+                  size="lg"
+                  variant="secondary"
+                >
+                  Read docs
+                </TrackedLinkButton>
+                <TrackedLinkButton
+                  href="/contact"
+                  eventName="landing_cta_clicked"
+                  eventSource="home-hero-contact"
+                  size="lg"
+                  variant="ghost"
+                >
+                  Talk to the founder
+                </TrackedLinkButton>
+              </div>
             </div>
 
-            <h1 className="font-display text-5xl font-semibold leading-[1.06] tracking-tight text-[var(--fyxvo-text)] sm:text-6xl lg:text-7xl">
-              Funded RPC access for{" "}
-              <span className="fyxvo-text-gradient">Solana developers.</span>
-            </h1>
-
-            <p className="mt-6 max-w-xl text-lg leading-8 text-[var(--fyxvo-text-muted)]">
-              Activate a project on chain, fund it with SOL, issue an API key, and route real
-              devnet traffic through a managed relay. One flow. No mock endpoints.
-            </p>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <TrackedLinkButton
-                href="/dashboard"
-                eventName="landing_cta_clicked"
-                eventSource="home-hero-dashboard"
-                size="lg"
-              >
-                Open dashboard
-              </TrackedLinkButton>
-              <TrackedLinkButton
-                href="/docs"
-                eventName="landing_cta_clicked"
-                eventSource="home-hero-docs"
-                size="lg"
-                variant="secondary"
-              >
-                Read docs
-              </TrackedLinkButton>
-              <TrackedLinkButton
-                href="/contact"
-                eventName="landing_cta_clicked"
-                eventSource="home-hero-contact"
-                size="lg"
-                variant="ghost"
-              >
-                Talk to the founder
-              </TrackedLinkButton>
+            {/* Animated terminal */}
+            <div className="hidden lg:block">
+              <AnimatedTerminal />
             </div>
           </div>
         </div>
