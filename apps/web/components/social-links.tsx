@@ -33,7 +33,7 @@ export function SocialLinks({ className }: { readonly className?: string }) {
             key={item.label}
             href={item.href}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             aria-label={item.label}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] text-[var(--fyxvo-text-soft)] shadow-[0_14px_40px_rgba(2,6,23,0.12)] transition hover:border-brand-500/40 hover:bg-[var(--fyxvo-panel)] hover:text-brand-400"
           >
@@ -56,7 +56,7 @@ export function SocialLinkButtons({ className }: { readonly className?: string }
             key={item.label}
             href={item.href}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-full border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-2 text-sm text-[var(--fyxvo-text-soft)] shadow-[0_14px_40px_rgba(2,6,23,0.12)] transition hover:border-brand-500/40 hover:bg-[var(--fyxvo-panel)] hover:text-brand-400"
           >
             <Icon className="h-4 w-4" />

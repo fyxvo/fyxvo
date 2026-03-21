@@ -87,6 +87,7 @@ export default function AssistantPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [rateLimitStatus, setRateLimitStatus] = useState<{ messagesUsedThisHour: number; limit: number } | null>(null);
+  const [assistantAvailable, setAssistantAvailable] = useState<boolean | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -115,6 +116,14 @@ export default function AssistantPage() {
   }, []);
 
   const isAuthenticated = portal.walletPhase === "authenticated";
+
+  // Check whether the AI service is configured (ANTHROPIC_API_KEY present in API)
+  useEffect(() => {
+    fetch(new URL("/health", webEnv.apiBaseUrl))
+      .then((r) => r.json() as Promise<{ assistantAvailable?: boolean }>)
+      .then((data) => setAssistantAvailable(data.assistantAvailable ?? false))
+      .catch(() => setAssistantAvailable(false));
+  }, []);
 
   // Load rate limit status when authenticated
   useEffect(() => {
@@ -165,11 +174,26 @@ export default function AssistantPage() {
       });
 
       if (!response.ok || !response.body) {
+        let errorContent = "AI service error. Please try again.";
+        if (response.status === 503) {
+          errorContent = "The AI assistant is not configured yet. Check back soon.";
+        } else if (response.status === 429) {
+          let retryMin = "a few";
+          try {
+            const errBody = await response.clone().json() as { retryAfterMs?: number };
+            if (errBody.retryAfterMs) retryMin = String(Math.ceil(errBody.retryAfterMs / 60000));
+          } catch { /* ignore */ }
+          errorContent = `Rate limit reached. You can send more messages in ${retryMin} minute${retryMin === "1" ? "" : "s"}.`;
+        } else if (response.status === 401) {
+          errorContent = "Your session has expired. Please reconnect your wallet.";
+        } else if (response.status === 400) {
+          errorContent = "Invalid request. Please rephrase your message.";
+        }
         setMessages((prev) => {
           const copy = [...prev];
           const last = copy[copy.length - 1];
           if (last && last.role === "assistant") {
-            copy[copy.length - 1] = { ...last, content: "Sorry, I couldn't reach the AI service. Please try again." };
+            copy[copy.length - 1] = { ...last, content: errorContent };
           }
           return copy;
         });
@@ -249,6 +273,13 @@ export default function AssistantPage() {
             </Button>
           )}
         </div>
+        {assistantAvailable === false && (
+          <div className="mt-4">
+            <Notice tone="warning" title="AI assistant not yet configured">
+              <span>The AI assistant is coming soon — the API key has not been configured yet. Check back after the next deployment.</span>
+            </Notice>
+          </div>
+        )}
         {!isAuthenticated && (
           <div className="mt-4">
             <Notice tone="neutral" title="Connect your wallet to use the AI assistant">

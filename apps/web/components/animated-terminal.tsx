@@ -17,15 +17,31 @@ const LINES = [
   { delay: 2100, text: "# 42ms · 200 OK · devnet slot", color: "text-[var(--fyxvo-text-muted)]" },
 ];
 
+const LOOP_INTERVAL = 8000; // Reset and replay every 8 seconds
+
+// Combined state avoids a synchronous setState() call inside the effect body.
+type AnimState = { count: number; generation: number };
+
 export function AnimatedTerminal() {
-  const [visibleCount, setVisibleCount] = useState(0);
+  const [{ count, generation }, setState] = useState<AnimState>({ count: 0, generation: 0 });
 
   useEffect(() => {
     const timers = LINES.map((line, i) =>
-      setTimeout(() => setVisibleCount(i + 1), line.delay + 400)
+      setTimeout(
+        () => setState((s) => ({ ...s, count: i + 1 })),
+        line.delay + 400
+      )
     );
-    return () => timers.forEach(clearTimeout);
-  }, []);
+    const loopTimer = setTimeout(() => {
+      timers.forEach(clearTimeout);
+      // Atomically reset count and bump generation — no synchronous setState in effect body
+      setState((s) => ({ count: 0, generation: s.generation + 1 }));
+    }, LOOP_INTERVAL);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(loopTimer);
+    };
+  }, [generation]);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel)] shadow-2xl">
@@ -38,12 +54,12 @@ export function AnimatedTerminal() {
       </div>
       {/* Content */}
       <div className="min-h-[220px] p-5 font-mono text-sm leading-6">
-        {LINES.slice(0, visibleCount).map((line, i) => (
+        {LINES.slice(0, count).map((line, i) => (
           <div key={i} className={`${line.color} whitespace-pre`}>
             {line.text}
           </div>
         ))}
-        {visibleCount < LINES.length && (
+        {count < LINES.length && (
           <span className="inline-block h-4 w-2 animate-pulse bg-[var(--fyxvo-brand)] opacity-70" />
         )}
       </div>

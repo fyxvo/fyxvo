@@ -169,6 +169,8 @@ async function sendGatewayError(
   });
 }
 
+const STARTUP_TIME_MS = Date.now();
+
 export async function buildGatewayApp(input: GatewayAppDependencies) {
   const app = Fastify({
     logger: input.logger ?? false,
@@ -466,9 +468,14 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
   }));
 
   app.get("/health", async (_request, reply) => {
-    const [database, redis, upstreamNodes, metrics] = await Promise.all([
+    const uptimeMs = Date.now() - STARTUP_TIME_MS;
+
+    const redisStart = Date.now();
+    const redis = await input.stateStore.ping().catch(() => false);
+    const redisResponseTimeMs = Date.now() - redisStart;
+
+    const [database, upstreamNodes, metrics] = await Promise.all([
       input.repository.ping().catch(() => false),
-      input.stateStore.ping().catch(() => false),
       input.repository.listUpstreamNodes().catch(() => []),
       input.stateStore.getMetricsSnapshot().catch(() => ({
         standard: {
@@ -491,20 +498,40 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
         }
       }))
     ]);
-    const upstream = upstreamNodes.length
+
+    const upstreamStart = Date.now();
+    const upstreamOk = upstreamNodes.length
       ? await input.router.ping(upstreamNodes, input.env.GATEWAY_HEALTHCHECK_TIMEOUT_MS).catch(() => false)
       : false;
-    const ok = database && redis && upstream;
+    const upstreamResponseTimeMs = Date.now() - upstreamStart;
+
+    const primaryNode = upstreamNodes[0];
+    const ok = database && redis && upstreamOk;
+    const summary = metricsSummary(metrics);
 
     reply.status(ok ? 200 : 503).send({
       status: ok ? "ok" : "degraded",
       service: "gateway",
+      uptime: Math.floor(uptimeMs / 1000),
       solanaCluster: input.env.SOLANA_CLUSTER,
+      requests: {
+        total: summary.totals.requests,
+        sinceStartup: true
+      },
+      dependencies: {
+        redis: {
+          ok: redis as boolean,
+          responseTimeMs: redisResponseTimeMs
+        },
+        upstream: {
+          ok: upstreamOk,
+          responseTimeMs: upstreamResponseTimeMs,
+          nodeCount: upstreamNodes.length,
+          ...(primaryNode ? { url: primaryNode.endpoint } : {})
+        }
+      },
       database,
-      redis,
-      upstream,
-      nodeCount: upstreamNodes.length,
-      metrics: metricsSummary(metrics),
+      metrics: summary,
       timestamp: new Date().toISOString()
     });
   });

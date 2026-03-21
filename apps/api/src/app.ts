@@ -701,6 +701,7 @@ export async function buildApiApp(input: {
       status: overallOk ? "ok" : "degraded",
       service: "api",
       uptime: Math.round(uptime),
+      assistantAvailable: !!input.env.ANTHROPIC_API_KEY,
       dependencies: {
         database: { ok: dbOk, responseTimeMs: dbMs },
         redis: { ok: redisOk, responseTimeMs: redisMs },
@@ -744,7 +745,9 @@ export async function buildApiApp(input: {
   const NETWORK_STATS_TTL_MS = 30_000;
   const SERVICE_HEALTH_TTL_MS = 60_000;
 
-  app.get("/v1/network/stats", async (_request, reply) => {
+  app.get("/v1/network/stats", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (_request, reply) => {
     const now = Date.now();
     if (!networkStatsCache || now >= networkStatsCache.expiresAt) {
       networkStatsCache = {
@@ -757,7 +760,9 @@ export async function buildApiApp(input: {
     return networkStatsCache.data;
   });
 
-  app.get("/v1/network/service-health", async (_request, reply) => {
+  app.get("/v1/network/service-health", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (_request, reply) => {
     const now = Date.now();
     if (!serviceHealthCache || now >= serviceHealthCache.expiresAt) {
       serviceHealthCache = {
@@ -770,7 +775,9 @@ export async function buildApiApp(input: {
     return serviceHealthCache.data;
   });
 
-  app.get("/v1/incidents", async (_request, reply) => {
+  app.get("/v1/incidents", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (_request, reply) => {
     const incidents = await input.repository.listIncidents(50);
     reply.header("cache-control", "public, max-age=60, stale-while-revalidate=120");
     return { incidents };
@@ -2234,7 +2241,9 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
 
   // ── System announcements ──────────────────────────────────────────────────
 
-  app.get("/v1/announcements/active", async () => {
+  app.get("/v1/announcements/active", {
+    config: { rateLimit: { max: 120, timeWindow: "1 minute" } }
+  }, async () => {
     const ann = await input.repository.getActiveAnnouncement();
     return { announcement: ann };
   });
@@ -2259,7 +2268,9 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
 
   // ── What's New ────────────────────────────────────────────────────────────
 
-  app.get("/v1/whats-new", async (request) => {
+  app.get("/v1/whats-new", {
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } }
+  }, async (request) => {
     const user = requireUser(request);
     const item = await input.repository.getWhatsNew(user.id);
     return { item };

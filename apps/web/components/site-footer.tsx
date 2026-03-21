@@ -76,7 +76,7 @@ export function SiteFooter() {
                   key={link.label}
                   href={link.href}
                   target={"external" in link && link.external ? "_blank" : undefined}
-                  rel={"external" in link && link.external ? "noreferrer" : undefined}
+                  rel={"external" in link && link.external ? "noopener noreferrer" : undefined}
                   className="block text-sm text-[var(--fyxvo-text-muted)] transition-colors hover:text-[var(--fyxvo-text)]"
                 >
                   {link.label}

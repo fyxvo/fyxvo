@@ -545,6 +545,8 @@ export default async function HomePage() {
                   eventName="landing_cta_clicked"
                   eventSource="home-community-discord"
                   variant="ghost"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
                   Join Discord
                 </TrackedLinkButton>

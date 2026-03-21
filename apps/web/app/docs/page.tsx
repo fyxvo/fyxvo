@@ -16,6 +16,7 @@ const NAV_SECTIONS = [
   { id: "funding", label: "Funding", keywords: "sol lamports treasury deposit balance credits prepare sign transaction" },
   { id: "standard-rpc", label: "Standard RPC", keywords: "rpc request jsonrpc endpoint gateway x-api-key getHealth getSlot" },
   { id: "priority-relay", label: "Priority Relay", keywords: "priority relay high throughput fast latency /priority scope" },
+  { id: "analytics", label: "Analytics", keywords: "analytics overview stats requests latency error rate monitoring project" },
   { id: "analytics-api", label: "Analytics API", keywords: "analytics stats requests latency error rate monitoring project" },
   { id: "api-explorer", label: "API Explorer", keywords: "try it interactive request curl live test endpoint" },
   { id: "webhooks", label: "Webhooks", keywords: "webhook http callback post event funding apikey hmac signature" },
@@ -25,9 +26,12 @@ const NAV_SECTIONS = [
   { id: "sdk-reference", label: "SDK Reference", keywords: "sdk library reference types api endpoint paths" },
   { id: "rate-limits", label: "Rate Limits", keywords: "rate limit 429 throttle bandwidth quota scope" },
   { id: "troubleshooting", label: "Troubleshooting", keywords: "error debug fix 401 403 402 500 403 common issues" },
+  { id: "error-reference", label: "Error Reference", keywords: "error reference codes 401 403 402 429 503 gateway api errors" },
+  { id: "ci-cd", label: "CI/CD Integration", keywords: "ci cd github actions continuous integration deploy environment variables secrets" },
+  { id: "migration-guide", label: "Migration Guide", keywords: "migration guide migrate helius quicknode alchemy switch rpc provider 2-line change" },
   { id: "network-status", label: "Network Status", keywords: "status health uptime live devnet solana network" },
   { id: "changelog", label: "Changelog", keywords: "release updates version changes new features" },
-  { id: "migration", label: "Migration Guide", keywords: "migrate helius quicknode alchemy switch rpc provider 2-line change" },
+  { id: "migration", label: "Migration (Legacy)", keywords: "migrate helius quicknode alchemy switch rpc provider 2-line change" },
   { id: "rate-limits-reference", label: "Rate Limits Reference", keywords: "rate limit table devnet requests per second 429" },
   { id: "error-codes", label: "Error Codes", keywords: "error codes 401 403 402 429 503 gateway api errors reference" },
   { id: "faq", label: "FAQ", keywords: "frequently asked questions faq devnet solana rpc gateway" },
@@ -697,6 +701,19 @@ curl -s -X POST ${webEnv.gatewayBaseUrl}/priority \\
             </div>
           </section>
 
+          {/* ── Analytics ────────────────────────────────────────── */}
+          <section id="analytics">
+            <SectionHeading
+              id="analytics"
+              eyebrow="Section 7"
+              title="Analytics"
+              description="Monitor request volume, latency, and errors across your Fyxvo projects."
+            />
+            <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+              Fyxvo provides a two-level analytics surface: an overview endpoint that aggregates totals across all your projects, and a per-project endpoint that surfaces method breakdowns, latency percentiles, status code distributions, and recent error events. Both endpoints require a valid JWT and respect the standard rate limit window.
+            </p>
+          </section>
+
           {/* ── Analytics API ────────────────────────────────────── */}
           <section id="analytics-api">
             <SectionHeading
@@ -1029,6 +1046,45 @@ if (req.headers['x-fyxvo-signature'] !== expected) return res.status(401).end();
                 </Notice>
               ))}
             </div>
+          </section>
+
+          {/* ── Error Reference ──────────────────────────────────── */}
+          <section id="error-reference">
+            <SectionHeading
+              id="error-reference"
+              eyebrow="Reference"
+              title="Error Reference"
+              description="A quick reference for every error code returned by the Fyxvo API and gateway."
+            />
+            <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+              All Fyxvo API errors follow the shape <code className="font-mono text-xs">{"{ error: string, message: string }"}</code>. HTTP status codes map directly to problem categories: 400 for validation, 401 for auth, 402 for insufficient balance, 403 for scope or role issues, 429 for rate limits, and 503 for protocol unavailability. See the Error Codes table below for the full list with resolution guidance.
+            </p>
+          </section>
+
+          {/* ── CI/CD Integration ────────────────────────────────── */}
+          <section id="ci-cd">
+            <SectionHeading
+              id="ci-cd"
+              eyebrow="Reference"
+              title="CI/CD Integration"
+              description="How to use Fyxvo API keys safely in automated pipelines."
+            />
+            <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+              Store your API key in an environment secret (e.g. <code className="font-mono text-xs">FYXVO_API_KEY</code>) and pass it as the <code className="font-mono text-xs">X-Api-Key</code> header. In GitHub Actions, use <code className="font-mono text-xs">{"${{ secrets.FYXVO_API_KEY }}"}</code>. Never commit keys directly. Use separate keys per environment so you can revoke CI access without affecting production.
+            </p>
+          </section>
+
+          {/* ── Migration Guide ───────────────────────────────────── */}
+          <section id="migration-guide">
+            <SectionHeading
+              id="migration-guide"
+              eyebrow="Reference"
+              title="Migration Guide"
+              description="Switch to Fyxvo from Helius, QuickNode, or any other Solana RPC provider."
+            />
+            <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+              Fyxvo is a drop-in replacement for any standard Solana JSON-RPC provider. Replace your existing endpoint URL with the Fyxvo gateway URL and add an <code className="font-mono text-xs">X-Api-Key</code> header containing your relay key. No SDK changes are required — any library that speaks JSON-RPC over HTTP works without modification.
+            </p>
           </section>
 
           {/* ── Network Status ───────────────────────────────────── */}

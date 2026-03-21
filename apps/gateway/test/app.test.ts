@@ -584,9 +584,10 @@ describe("Fyxvo gateway", () => {
       status: "ok",
       service: "gateway",
       database: true,
-      redis: true,
-      upstream: true,
-      nodeCount: 1
+      dependencies: {
+        redis: { ok: true },
+        upstream: { ok: true, nodeCount: 1 }
+      }
     });
 
     const statusResponse = await app.inject({
