@@ -98,6 +98,16 @@ export default function SettingsPage() {
   );
   const [dailyAlertSaving, setDailyAlertSaving] = useState(false);
 
+  // Daily cost alert
+  const [dailyCostAlertSol, setDailyCostAlertSol] = useState(
+    (() => {
+      const lamports = (portal.selectedProject as { dailyCostAlertLamports?: string | null } | null)?.dailyCostAlertLamports;
+      if (!lamports) return "";
+      try { return (Number(BigInt(lamports)) / 1e9).toString(); } catch { return ""; }
+    })()
+  );
+  const [dailyCostAlertSaving, setDailyCostAlertSaving] = useState(false);
+
   // Appearance
   const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
 
@@ -236,6 +246,15 @@ export default function SettingsPage() {
     if (!portal.selectedProject) return;
     setDailyAlertSaving(true);
     try { await patchProject(portal.selectedProject.id, { dailyRequestAlertThreshold: dailyAlertThreshold === "" ? 0 : Number(dailyAlertThreshold) }); } finally { setDailyAlertSaving(false); }
+  }
+
+  async function saveDailyCostAlert() {
+    if (!portal.selectedProject) return;
+    setDailyCostAlertSaving(true);
+    try {
+      const lamports = dailyCostAlertSol === "" ? "0" : String(Math.round(parseFloat(dailyCostAlertSol) * 1e9));
+      await patchProject(portal.selectedProject.id, { dailyCostAlertLamports: lamports });
+    } finally { setDailyCostAlertSaving(false); }
   }
 
   async function handleRenameProject(projectId: string) {
@@ -947,6 +966,28 @@ export default function SettingsPage() {
               <Input type="number" value={dailyAlertThreshold} onChange={(e) => setDailyAlertThreshold(e.target.value)} placeholder="10000" className="h-9 w-28 text-sm" />
               <Button variant="secondary" size="sm" onClick={() => void saveDailyAlert()} disabled={dailyAlertSaving || !portal.selectedProject || !portal.token}>
                 {dailyAlertSaving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </SettingRow>
+          <SettingRow label="Daily spending alert (SOL)" description="You will be notified when this project spends more than this amount in a single day.">
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="0"
+                step="0.001"
+                value={dailyCostAlertSol}
+                onChange={(e) => setDailyCostAlertSol(e.target.value)}
+                placeholder="0.01"
+                className="h-9 w-28 text-sm"
+                disabled={!portal.selectedProject || !portal.token}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void saveDailyCostAlert()}
+                disabled={dailyCostAlertSaving || !portal.selectedProject || !portal.token}
+              >
+                {dailyCostAlertSaving ? "Saving…" : "Save"}
               </Button>
             </div>
           </SettingRow>

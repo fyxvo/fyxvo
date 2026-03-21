@@ -51,11 +51,29 @@ function computeUptime(
   return { uptime, actualDays };
 }
 
+interface NetworkCapacityResponse {
+  readonly requestsPerMinute?: number;
+  readonly capacityPerMinute?: number;
+}
+
+async function fetchNetworkCapacity(): Promise<NetworkCapacityResponse | null> {
+  try {
+    const res = await fetch(new URL("/v1/network/capacity", webEnv.apiBaseUrl).toString(), {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as NetworkCapacityResponse;
+  } catch {
+    return null;
+  }
+}
+
 export default async function StatusPage() {
-  const [status, serviceHealth, incidents] = await Promise.all([
+  const [status, serviceHealth, incidents, networkCapacity] = await Promise.all([
     getStatusSnapshot(),
     getServiceHealthHistory().catch(() => null),
-    getIncidents().catch(() => [])
+    getIncidents().catch(() => []),
+    fetchNetworkCapacity().catch(() => null),
   ]);
   const readiness = status.apiStatus.protocolReadiness;
   const gatewayMetrics = status.gatewayStatus.metrics;
@@ -536,6 +554,53 @@ export default async function StatusPage() {
                 ))
               )}
             </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Network Capacity */}
+      <section>
+        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+          <CardHeader>
+            <CardTitle>Network Capacity</CardTitle>
+            <CardDescription>
+              Current request throughput versus managed infrastructure capacity.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(() => {
+              const CAPACITY_MAX = 10_000;
+              const current = networkCapacity?.requestsPerMinute ?? 0;
+              const capacity = networkCapacity?.capacityPerMinute ?? CAPACITY_MAX;
+              const utilizationPct = Math.min(100, Math.round((current / capacity) * 100));
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[var(--fyxvo-text-muted)]">Requests/min (current)</span>
+                    <span className="font-mono font-medium text-[var(--fyxvo-text)]">
+                      {networkCapacity ? current.toLocaleString() : "Unavailable"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[var(--fyxvo-text-muted)]">Capacity</span>
+                    <span className="font-mono font-medium text-[var(--fyxvo-text)]">{capacity.toLocaleString()} req/min</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[var(--fyxvo-text-muted)]">Utilization</span>
+                    <span className="font-mono font-medium text-[var(--fyxvo-text)]">{utilizationPct}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--fyxvo-panel-soft)]">
+                    <div
+                      style={{ width: `${utilizationPct}%` }}
+                      className="h-2 rounded bg-[var(--fyxvo-brand)] transition-[width]"
+                    />
+                  </div>
+                  <p className="text-xs text-[var(--fyxvo-text-muted)]">
+                    Capacity estimate is based on current managed infrastructure. Increases with operator network growth.
+                  </p>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </section>

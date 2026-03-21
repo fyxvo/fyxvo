@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Notice } from "@fyxvo/ui";
 import { PageHeader } from "../../components/page-header";
 import { InterestCaptureForm } from "../../components/interest-capture-form";
-import { PricingEstimator } from "../../components/pricing-estimator";
+import { AdvancedPricingEstimator, PricingEstimator } from "../../components/pricing-estimator";
 import { TrackedLinkButton } from "../../components/tracked-link-button";
 import { PRICING_LAMPORTS, PRICING_USDC, VOLUME_DISCOUNT, FREE_TIER_REQUESTS, REVENUE_SPLIT_BPS } from "@fyxvo/config";
 import { webEnv } from "../../lib/env";
@@ -278,6 +278,11 @@ export default async function PricingPage() {
             </Notice>
           </CardContent>
         </Card>
+      </section>
+
+      {/* Advanced cost estimator */}
+      <section>
+        <AdvancedPricingEstimator solPriceUsd={solPriceUsd} />
       </section>
 
       {/* Comparison table */}

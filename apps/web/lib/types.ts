@@ -29,6 +29,7 @@ export interface PortalProject {
   readonly isPublic: boolean;
   readonly publicSlug: string | null;
   readonly leaderboardVisible?: boolean;
+  readonly dailyCostAlertLamports?: string | null;
   readonly archivedAt: string | null;
   readonly owner: PortalUser;
   readonly _count?: {

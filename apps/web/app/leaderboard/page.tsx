@@ -14,10 +14,25 @@ interface LeaderboardResponse {
   entries: LeaderboardEntry[];
 }
 
-async function fetchLeaderboard(): Promise<LeaderboardResponse | null> {
+type PeriodKey = "7d" | "30d" | "all";
+
+interface LeaderboardPageProps {
+  searchParams: Promise<{ period?: string }>;
+}
+
+const PERIOD_OPTIONS: { key: PeriodKey; label: string; days: number | null }[] = [
+  { key: "7d", label: "7 days", days: 7 },
+  { key: "30d", label: "30 days", days: 30 },
+  { key: "all", label: "All time", days: null },
+];
+
+async function fetchLeaderboard(days: number | null): Promise<LeaderboardResponse | null> {
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
   try {
-    const res = await fetch(`${apiBase}/v1/leaderboard`, {
+    const url = days != null
+      ? `${apiBase}/v1/leaderboard?days=${days}`
+      : `${apiBase}/v1/leaderboard`;
+    const res = await fetch(url, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return null;
@@ -34,16 +49,54 @@ function rankBadgeClass(rank: number): string {
   return "text-[var(--fyxvo-text-muted)]";
 }
 
-export default async function LeaderboardPage() {
-  const data = await fetchLeaderboard();
+function periodLabel(key: PeriodKey): string {
+  return PERIOD_OPTIONS.find((p) => p.key === key)?.label ?? "30 days";
+}
+
+export default async function LeaderboardPage({ searchParams }: LeaderboardPageProps) {
+  const resolvedParams = await searchParams;
+  const rawPeriod = resolvedParams.period ?? "30d";
+  const period: PeriodKey = (["7d", "30d", "all"] as PeriodKey[]).includes(rawPeriod as PeriodKey)
+    ? (rawPeriod as PeriodKey)
+    : "30d";
+  const periodDays = PERIOD_OPTIONS.find((p) => p.key === period)?.days ?? 30;
+
+  const data = await fetchLeaderboard(periodDays);
+
+  // Compute stats from entries server-side
+  const stats = data && data.entries.length > 0
+    ? {
+        totalRequests: data.entries.reduce((sum, e) => sum + e.totalRequests, 0),
+        highestSingle: Math.max(...data.entries.map((e) => e.totalRequests)),
+        fastestAvgLatency: Math.min(...data.entries.map((e) => e.avgLatencyMs)),
+      }
+    : null;
 
   return (
     <div className="space-y-10 lg:space-y-12">
-      <PageHeader
-        eyebrow="Community"
-        title="Developer Leaderboard"
-        description="Top projects by request volume — last 30 days. Opt in from project settings."
-      />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <PageHeader
+          eyebrow="Community"
+          title="Developer Leaderboard"
+          description={`Top projects by request volume — ${periodLabel(period)}. Opt in from project settings.`}
+        />
+        {/* Period selector */}
+        <div className="flex shrink-0 gap-1 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-1 self-start">
+          {PERIOD_OPTIONS.map((opt) => (
+            <Link
+              key={opt.key}
+              href={`?period=${opt.key}`}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                period === opt.key
+                  ? "bg-brand-500 text-white"
+                  : "text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)]"
+              }`}
+            >
+              {opt.label}
+            </Link>
+          ))}
+        </div>
+      </div>
 
       {data === null ? (
         <div className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-6 py-8 text-center">
@@ -73,7 +126,7 @@ export default async function LeaderboardPage() {
                   Project
                 </th>
                 <th className="py-3 px-4 text-right font-medium text-[var(--fyxvo-text-muted)]">
-                  Requests (30d)
+                  Requests ({periodLabel(period)})
                 </th>
                 <th className="py-3 px-4 text-right font-medium text-[var(--fyxvo-text-muted)]">
                   Avg Latency
@@ -126,8 +179,46 @@ export default async function LeaderboardPage() {
         </div>
       )}
 
+      {/* Statistics section */}
+      {stats && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-[1.5rem] border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">
+            <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)] mb-2">
+              Combined total requests
+            </div>
+            <div className="text-xl font-semibold text-[var(--fyxvo-text)]">
+              {stats.totalRequests.toLocaleString()}
+            </div>
+            <div className="text-xs text-[var(--fyxvo-text-muted)] mt-1">across all ranked projects</div>
+          </div>
+          <div className="rounded-[1.5rem] border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">
+            <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)] mb-2">
+              Highest single project
+            </div>
+            <div className="text-xl font-semibold text-[var(--fyxvo-text)]">
+              {stats.highestSingle.toLocaleString()}
+            </div>
+            <div className="text-xs text-[var(--fyxvo-text-muted)] mt-1">requests by #1 project</div>
+          </div>
+          <div className="rounded-[1.5rem] border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">
+            <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)] mb-2">
+              Fastest avg latency
+            </div>
+            <div className="text-xl font-semibold text-[var(--fyxvo-text)]">
+              {stats.fastestAvgLatency.toFixed(1)} ms
+            </div>
+            <div className="text-xs text-[var(--fyxvo-text-muted)] mt-1">best performing project</div>
+          </div>
+        </div>
+      )}
+
       <p className="text-xs text-[var(--fyxvo-text-muted)]">
         Leaderboard updates every 5 minutes.
+        {period !== "30d" && (
+          <span className="ml-1 opacity-70">
+            Period selector is cosmetic until the backend supports the <code className="font-mono">days</code> parameter.
+          </span>
+        )}
       </p>
     </div>
   );

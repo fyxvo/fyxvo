@@ -2579,6 +2579,53 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
     return { nodes, dataAvailable: nodes.length > 0 };
   });
 
+  // ── Latency heatmap ───────────────────────────────────────────────────────
+  app.get("/v1/projects/:projectId/analytics/heatmap", async (request) => {
+    const user = requireUser(request);
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params);
+    const { range = "7d" } = z.object({ range: z.enum(["24h", "7d", "30d"]).default("7d") }).parse(request.query);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project) throw new HttpError(404, "not_found", "Project not found.");
+    if (!canAccessProject(user, project)) throw new HttpError(403, "forbidden", "Access denied.");
+    return { grid: await input.repository.getLatencyHeatmap(projectId, range) };
+  });
+
+  // ── Request trace lookup ──────────────────────────────────────────────────
+  app.get("/v1/projects/:projectId/requests/:traceId", async (request) => {
+    const user = requireUser(request);
+    const { projectId, traceId } = z.object({
+      projectId: z.string().uuid(),
+      traceId: z.string().uuid(),
+    }).parse(request.params);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project) throw new HttpError(404, "not_found", "Project not found.");
+    if (!canAccessProject(user, project)) throw new HttpError(403, "forbidden", "Access denied.");
+    const log = await input.repository.findRequestByTraceId(projectId, traceId);
+    if (!log) throw new HttpError(404, "not_found", "Trace ID not found.");
+    return log;
+  });
+
+  // ── Network capacity ──────────────────────────────────────────────────────
+  app.get("/v1/network/capacity", async () => {
+    const since = new Date(Date.now() - 60_000);
+    const recentCount = await input.repository.countRecentRequests(since);
+    const requestsPerMinute = recentCount;
+    const capacityRpm = 10_000;
+    const utilizationPct = Math.min(100, Math.round((requestsPerMinute / capacityRpm) * 100));
+    return { requestsPerMinute, capacityRpm, utilizationPct };
+  });
+
+  // ── Success rate trend ────────────────────────────────────────────────────
+  app.get("/v1/projects/:projectId/analytics/success-trend", async (request) => {
+    const user = requireUser(request);
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params);
+    const { range = "7d" } = z.object({ range: z.enum(["24h", "7d", "30d"]).default("7d") }).parse(request.query);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project) throw new HttpError(404, "not_found", "Project not found.");
+    if (!canAccessProject(user, project)) throw new HttpError(403, "forbidden", "Access denied.");
+    return { points: await input.repository.getSuccessRateTrend(projectId, range) };
+  });
+
   // ── Client error reporting ────────────────────────────────────────────────
   app.post("/v1/analytics/errors", async (request, reply) => {
     const body = z.object({

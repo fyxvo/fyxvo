@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@fyxvo/ui";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@fyxvo/ui";
 import { PRICING_LAMPORTS, VOLUME_DISCOUNT, FREE_TIER_REQUESTS, applyVolumeDiscount } from "@fyxvo/config";
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
@@ -141,6 +141,182 @@ export function PricingEstimator({ solPriceUsd }: Props) {
             <p>USD estimate unavailable — SOL price could not be fetched.</p>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Advanced pricing estimator
+// ---------------------------------------------------------------------------
+
+const ADVANCED_LAMPORTS_PER_REQUEST: Record<"standard" | "priority", number> = {
+  standard: 1000,
+  priority: 5000,
+};
+
+interface RequestTypeRow {
+  readonly id: number;
+  methodName: string;
+  countPerDay: number;
+  mode: "standard" | "priority";
+}
+
+const MAX_ROWS = 5;
+
+function nextId(rows: RequestTypeRow[]): number {
+  return rows.reduce((max, r) => Math.max(max, r.id), 0) + 1;
+}
+
+interface AdvancedProps {
+  readonly solPriceUsd: number | null;
+}
+
+export function AdvancedPricingEstimator({ solPriceUsd }: AdvancedProps) {
+  const [rows, setRows] = useState<RequestTypeRow[]>([
+    { id: 1, methodName: "getBalance", countPerDay: 10000, mode: "standard" },
+  ]);
+
+  function updateRow(id: number, patch: Partial<Omit<RequestTypeRow, "id">>) {
+    setRows((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
+    );
+  }
+
+  function addRow() {
+    if (rows.length >= MAX_ROWS) return;
+    setRows((prev) => [
+      ...prev,
+      { id: nextId(prev), methodName: "", countPerDay: 1000, mode: "standard" },
+    ]);
+  }
+
+  function removeRow(id: number) {
+    setRows((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  const rowBreakdowns = rows.map((row) => {
+    const lamportsPerReq = ADVANCED_LAMPORTS_PER_REQUEST[row.mode];
+    const dailyLamports = row.countPerDay * lamportsPerReq;
+    const dailySol = dailyLamports / LAMPORTS_PER_SOL;
+    return { ...row, lamportsPerReq, dailyLamports, dailySol };
+  });
+
+  const totalDailySol = rowBreakdowns.reduce((sum, r) => sum + r.dailySol, 0);
+  const totalMonthlySol = totalDailySol * 30;
+  const totalDailyRequests = rows.reduce((sum, r) => sum + r.countPerDay, 0);
+  const requestsPerSol =
+    totalDailySol > 0 ? Math.round(totalDailyRequests / totalDailySol) : 0;
+  const recommended30DayFund = totalMonthlySol;
+
+  return (
+    <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+      <CardHeader>
+        <CardTitle>Advanced cost estimator</CardTitle>
+        <CardDescription>
+          Add request types by method name to model your exact traffic mix.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="space-y-3">
+          {rows.map((row) => (
+            <div
+              key={row.id}
+              className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center"
+            >
+              <input
+                type="text"
+                value={row.methodName}
+                onChange={(e) => updateRow(row.id, { methodName: e.target.value })}
+                placeholder="e.g. getBalance calls"
+                className="h-9 rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-3 text-sm text-[var(--fyxvo-text)] placeholder:text-[var(--fyxvo-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--fyxvo-accent)]"
+              />
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={row.countPerDay}
+                onChange={(e) => updateRow(row.id, { countPerDay: Math.max(0, Number(e.target.value)) })}
+                className="h-9 w-28 rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-3 text-sm text-[var(--fyxvo-text)] focus:outline-none focus:ring-1 focus:ring-[var(--fyxvo-accent)]"
+              />
+              <select
+                value={row.mode}
+                onChange={(e) => updateRow(row.id, { mode: e.target.value as "standard" | "priority" })}
+                className="h-9 rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-2 text-sm text-[var(--fyxvo-text)] focus:outline-none focus:ring-1 focus:ring-[var(--fyxvo-accent)]"
+              >
+                <option value="standard">Standard</option>
+                <option value="priority">Priority</option>
+              </select>
+              {rows.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => removeRow(row.id)}
+                  className="h-9 w-9 flex items-center justify-center rounded-lg border border-[var(--fyxvo-border)] text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)] transition-colors"
+                  aria-label="Remove row"
+                >
+                  ×
+                </button>
+              ) : (
+                <div className="h-9 w-9" />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {rows.length < MAX_ROWS ? (
+          <Button variant="secondary" size="sm" onClick={addRow}>
+            Add another request type
+          </Button>
+        ) : (
+          <p className="text-xs text-[var(--fyxvo-text-muted)]">Maximum of {MAX_ROWS} request types reached.</p>
+        )}
+
+        {/* Per-type breakdown */}
+        <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Daily cost breakdown</p>
+          {rowBreakdowns.map((row) => (
+            <div key={row.id} className="flex items-center justify-between text-sm">
+              <span className="truncate max-w-[180px] text-[var(--fyxvo-text-soft)]">
+                {row.methodName || "(unnamed)"}
+                <span className="ml-1 text-xs text-[var(--fyxvo-text-muted)]">
+                  {row.countPerDay.toLocaleString()} × {row.lamportsPerReq.toLocaleString()} lam
+                </span>
+              </span>
+              <span className="font-mono text-[var(--fyxvo-text)]">{row.dailySol.toFixed(6)} SOL</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Summary */}
+        <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--fyxvo-text-muted)]">Total daily cost</span>
+            <span className="font-mono text-sm font-semibold text-[var(--fyxvo-text)]">{totalDailySol.toFixed(6)} SOL</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--fyxvo-text-muted)]">Total monthly cost</span>
+            <span className="font-mono text-sm font-semibold text-[var(--fyxvo-text)]">{totalMonthlySol.toFixed(6)} SOL</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--fyxvo-text-muted)]">Requests per SOL</span>
+            <span className="font-mono text-sm text-[var(--fyxvo-text)]">{requestsPerSol.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--fyxvo-text-muted)]">Recommended 30-day fund</span>
+            <span className="font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">{recommended30DayFund.toFixed(6)} SOL</span>
+          </div>
+          {solPriceUsd != null && totalMonthlySol > 0 ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-[var(--fyxvo-text-muted)]">Est. monthly USD</span>
+              <span className="font-mono text-sm text-[var(--fyxvo-text-soft)]">~${(totalMonthlySol * solPriceUsd).toFixed(2)}</span>
+            </div>
+          ) : null}
+        </div>
+
+        <p className="text-xs text-[var(--fyxvo-text-muted)]">
+          Standard: {ADVANCED_LAMPORTS_PER_REQUEST.standard.toLocaleString()} lamports/req ·
+          Priority: {ADVANCED_LAMPORTS_PER_REQUEST.priority.toLocaleString()} lamports/req
+        </p>
       </CardContent>
     </Card>
   );

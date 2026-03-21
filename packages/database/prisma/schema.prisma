@@ -160,6 +160,7 @@ model Project {
   ownerId                    String              @db.Uuid
   lowBalanceThresholdSol     Float?
   dailyRequestAlertThreshold Int?
+  dailyCostAlertLamports     BigInt?
   templateType               String?
   archivedAt                 DateTime?
   environment                String              @default("development")

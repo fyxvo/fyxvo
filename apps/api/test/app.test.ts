@@ -1010,6 +1010,12 @@ class MemoryApiRepository implements ApiRepository {
   async getNewsletterSubscribers(_limit?: number): Promise<NewsletterSubscriberList> {
     return { count: 0, recent: [] };
   }
+  async getLatencyHeatmap(_projectId: string, _range: "24h" | "7d" | "30d"): Promise<number[][]> {
+    return Array.from({ length: 24 }, () => Array(7).fill(0));
+  }
+  async findRequestByTraceId(_projectId: string, _traceId: string): Promise<Record<string, unknown> | null> { return null; }
+  async countRecentRequests(_since: Date): Promise<number> { return 0; }
+  async getSuccessRateTrend(_projectId: string, _range: "24h" | "7d" | "30d"): Promise<Array<{ time: string; successRate: number }>> { return []; }
 }
 
 async function createTestApp(options: { rateLimitMax?: number } = {}) {

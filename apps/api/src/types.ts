@@ -760,6 +760,11 @@ export interface ApiRepository {
   // Admin platform stats
   getAdminPlatformStats(): Promise<AdminPlatformStats>;
   getNewsletterSubscribers(limit?: number): Promise<NewsletterSubscriberList>;
+  // Analytics extras
+  getLatencyHeatmap(projectId: string, range: "24h" | "7d" | "30d"): Promise<number[][]>;
+  findRequestByTraceId(projectId: string, traceId: string): Promise<Record<string, unknown> | null>;
+  countRecentRequests(since: Date): Promise<number>;
+  getSuccessRateTrend(projectId: string, range: "24h" | "7d" | "30d"): Promise<Array<{ time: string; successRate: number }>>;
 }
 
 export interface AdminPlatformStats {

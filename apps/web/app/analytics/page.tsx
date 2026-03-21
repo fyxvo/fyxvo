@@ -63,6 +63,19 @@ function RangeSelector({
   );
 }
 
+function toSparklinePath(points: number[], width = 80, height = 24): string {
+  if (points.length < 2) return "";
+  const min = Math.min(...points), max = Math.max(...points);
+  const range = max - min || 1;
+  return points
+    .map((v, i) => {
+      const x = (i / (points.length - 1)) * width;
+      const y = height - ((v - min) / range) * height;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
+
 export default function AnalyticsPage() {
   const portal = usePortal();
   const [range, setRange] = useState<AnalyticsRange>("24h");
@@ -74,6 +87,8 @@ export default function AnalyticsPage() {
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [nodeDistribution, setNodeDistribution] = useState<NodeDistributionEntry[]>([]);
   const [loadingNodes, setLoadingNodes] = useState(false);
+  const [heatmapData, setHeatmapData] = useState<number[][]>([]);
+  const [successTrend, setSuccessTrend] = useState<number[]>([]);
 
   const selectedProject = portal.selectedProject;
 
@@ -148,6 +163,64 @@ export default function AnalyticsPage() {
       });
     return () => { cancelled = true; };
   }, [selectedProject, portal.token]);
+
+  useEffect(() => {
+    if (!selectedProject || !portal.token) {
+      setSuccessTrend([]);
+      return;
+    }
+    let cancelled = false;
+    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/v1/projects/${selectedProject.id}/analytics/success-trend?range=${range}`;
+    fetch(url, { headers: { authorization: `Bearer ${portal.token}` }, cache: "no-store" })
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error("success-trend fetch failed")))
+      .then((body: unknown) => {
+        if (
+          typeof body === "object" &&
+          body !== null &&
+          "trend" in body &&
+          Array.isArray((body as Record<string, unknown>).trend)
+        ) {
+          const data = (body as { trend: number[] }).trend;
+          if (!cancelled) setTimeout(() => setSuccessTrend(data), 0);
+        } else {
+          if (!cancelled) setTimeout(() => setSuccessTrend([]), 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTimeout(() => setSuccessTrend([]), 0);
+      });
+    return () => { cancelled = true; };
+  }, [selectedProject, portal.token, range]);
+
+  useEffect(() => {
+    if (!selectedProject || !portal.token) {
+      setHeatmapData([]);
+      return;
+    }
+    let cancelled = false;
+    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/v1/projects/${selectedProject.id}/analytics/heatmap?range=${range}`;
+    fetch(url, { headers: { authorization: `Bearer ${portal.token}` }, cache: "no-store" })
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error("heatmap fetch failed")))
+      .then((body: unknown) => {
+        if (
+          typeof body === "object" &&
+          body !== null &&
+          "heatmap" in body &&
+          Array.isArray((body as Record<string, unknown>).heatmap)
+        ) {
+          const data = (body as { heatmap: number[][] }).heatmap;
+          if (!cancelled) {
+            setTimeout(() => setHeatmapData(data), 0);
+          }
+        } else {
+          if (!cancelled) setTimeout(() => setHeatmapData([]), 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTimeout(() => setHeatmapData([]), 0);
+      });
+    return () => { cancelled = true; };
+  }, [selectedProject, portal.token, range]);
 
   const displayAnalytics = localAnalytics ?? portal.projectAnalytics;
 
@@ -239,7 +312,21 @@ export default function AnalyticsPage() {
               return formatPercent((success / total) * 100);
             })()}
             detail="Requests returning 2xx and 3xx status codes."
-            accent={<DeltaBadge value="observed" />}
+            accent={
+              <div className="flex items-center gap-2">
+                <DeltaBadge value="observed" />
+                {successTrend.length >= 2 && (() => {
+                  const latest = successTrend[successTrend.length - 1] ?? 0;
+                  const color = latest >= 95 ? "#22c55e" : "#f59e0b";
+                  const path = toSparklinePath(successTrend);
+                  return (
+                    <svg width={80} height={24} viewBox="0 0 80 24" fill="none" aria-hidden="true">
+                      <path d={path} stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  );
+                })()}
+              </div>
+            }
           />
           <MetricCard
             label="Avg latency"
@@ -563,6 +650,81 @@ export default function AnalyticsPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* Latency Heatmap */}
+      {isAuthenticated && selectedProject && (
+        <section>
+          <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+            <CardHeader>
+              <CardTitle>Latency Heatmap</CardTitle>
+              <CardDescription>
+                Average latency by hour (0–23) and day of week (Mon–Sun). Darker cells indicate higher latency.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {heatmapData.length === 0 ? (
+                <Notice tone="neutral" title="No heatmap data">
+                  Heatmap data will appear once enough traffic has been recorded for the selected range.
+                </Notice>
+              ) : (
+                <div className="space-y-3">
+                  {/* Day labels */}
+                  <div
+                    style={{ display: "grid", gridTemplateColumns: "2.5rem repeat(7, 1fr)", gap: "2px" }}
+                  >
+                    <div />
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                      <div key={d} className="text-center text-xs text-[var(--fyxvo-text-muted)]">{d}</div>
+                    ))}
+                  </div>
+                  {/* Grid rows: one per hour */}
+                  {(() => {
+                    const maxVal = Math.max(...heatmapData.flatMap((row) => row), 1);
+                    return heatmapData.map((row, hour) => (
+                      <div
+                        key={hour}
+                        style={{ display: "grid", gridTemplateColumns: "2.5rem repeat(7, 1fr)", gap: "2px" }}
+                      >
+                        <div className="flex items-center text-xs text-[var(--fyxvo-text-muted)]">
+                          {String(hour).padStart(2, "0")}
+                        </div>
+                        {row.map((val, dayIdx) => {
+                          const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+                          const intensity = maxVal > 0 ? val / maxVal : 0;
+                          return (
+                            <div
+                              key={dayIdx}
+                              title={`Hour ${String(hour).padStart(2, "0")}, ${DAY_LABELS[dayIdx] ?? `Day ${dayIdx}`}: ${val}ms avg`}
+                              style={{
+                                height: "14px",
+                                borderRadius: "2px",
+                                backgroundColor: `color-mix(in srgb, var(--fyxvo-brand) ${Math.round(intensity * 85 + 5)}%, transparent)`,
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()}
+                  {/* Legend */}
+                  <div className="flex items-center gap-3 pt-1">
+                    <span className="text-xs text-[var(--fyxvo-text-muted)]">Low latency</span>
+                    <div
+                      style={{
+                        flex: 1,
+                        height: "8px",
+                        borderRadius: "4px",
+                        background: "linear-gradient(to right, color-mix(in srgb, var(--fyxvo-brand) 10%, transparent), var(--fyxvo-brand))",
+                      }}
+                    />
+                    <span className="text-xs text-[var(--fyxvo-text-muted)]">High latency</span>
+                  </div>
                 </div>
               )}
             </CardContent>

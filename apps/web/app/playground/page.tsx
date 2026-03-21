@@ -35,6 +35,7 @@ type RpcMethod = {
   params: MethodParam[];
   examples?: MethodExample[];
   responseSchema?: ResponseSchemaField[];
+  isTraceLookup?: boolean;
 };
 
 const RPC_METHODS: RpcMethod[] = [
@@ -208,6 +209,14 @@ const RPC_METHODS: RpcMethod[] = [
       { key: "transaction.message.instructions", type: "array", description: "Instructions in the transaction" },
     ],
   },
+  // Trace
+  {
+    method: "traceLookup",
+    category: "Trace",
+    description: "Look up a request by its X-Fyxvo-Trace-Id response header",
+    params: [],
+    isTraceLookup: true,
+  },
 ];
 
 const CATEGORIES = [...new Set(RPC_METHODS.map((m) => m.category))];
@@ -261,9 +270,11 @@ async function sendRpcRequest(
   gatewayBase: string,
   mode: "standard" | "priority",
   body: string,
-  apiKeyPrefix?: string
+  apiKeyPrefix?: string,
+  simulate?: boolean
 ): Promise<{ text: string; status: number; durationMs: number }> {
-  const endpoint = mode === "priority" ? `${gatewayBase}/priority` : `${gatewayBase}/rpc`;
+  const basePath = mode === "priority" ? `${gatewayBase}/priority` : `${gatewayBase}/rpc`;
+  const endpoint = simulate ? `${basePath}?simulate=true` : basePath;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKeyPrefix) headers["x-api-key"] = `${apiKeyPrefix}...`;
   const start = Date.now();
@@ -370,11 +381,18 @@ function PlaygroundContent() {
   const [responseTimeMs, setResponseTimeMs] = useState<number | null>(null);
   const [compareResponseTimeMs, setCompareResponseTimeMs] = useState<number | null>(null);
 
+  // Simulation mode
+  const [simulateMode, setSimulateMode] = useState(false);
+
   // Session request counter
   const [sessionRequestCount, setSessionRequestCount] = useState(0);
 
   // Error explanation derived from response
   const [errorExplanation, setErrorExplanation] = useState<{ name: string; explanation: string } | null>(null);
+
+  // Trace lookup
+  const [traceId, setTraceId] = useState("");
+
   const initializedFromUrl = useRef(false);
 
   // On mount, restore state from URL search params
@@ -398,6 +416,7 @@ function PlaygroundContent() {
   const selectMethod = useCallback((m: RpcMethod) => {
     setSelectedMethod(m);
     setParamValues({});
+    setTraceId("");
     setResponse(null);
     setCompareResponse(null);
     setError(null);
@@ -451,6 +470,35 @@ function PlaygroundContent() {
   async function sendRequest() {
     if (!isAuthenticated) return;
 
+    // Trace lookup — hits API directly, bypasses gateway RPC path
+    if (selectedMethod.isTraceLookup) {
+      if (!traceId.trim() || !portal.selectedProject || !portal.token) return;
+      setLoading(true);
+      setError(null);
+      setResponse(null);
+      setDurationMs(null);
+      setResponseTimeMs(null);
+      try {
+        const start = Date.now();
+        const res = await fetch(
+          `${webEnv.apiBaseUrl}/v1/projects/${portal.selectedProject.id}/requests/${traceId.trim()}`,
+          { headers: { Authorization: `Bearer ${portal.token}` } }
+        );
+        const elapsed = Date.now() - start;
+        const text = await res.text();
+        setResponse(formatResponse(text));
+        setDurationMs(elapsed);
+        setResponseTimeMs(elapsed);
+        addHistory("traceLookup", "standard", elapsed, res.status);
+        setSessionRequestCount((c) => c + 1);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Network error");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const isDecodeMethod = selectedMethod.method === "decodeTransaction";
     const body = isDecodeMethod
       ? JSON.stringify({
@@ -475,8 +523,8 @@ function PlaygroundContent() {
     try {
       if (compareMode) {
         const [standardResult, priorityResult] = await Promise.allSettled([
-          sendRpcRequest(gatewayBase, "standard", body, activeApiKey?.prefix),
-          sendRpcRequest(gatewayBase, "priority", body, activeApiKey?.prefix),
+          sendRpcRequest(gatewayBase, "standard", body, activeApiKey?.prefix, simulateMode),
+          sendRpcRequest(gatewayBase, "priority", body, activeApiKey?.prefix, simulateMode),
         ]);
         if (standardResult.status === "fulfilled") {
           setResponse(formatResponse(standardResult.value.text));
@@ -497,7 +545,7 @@ function PlaygroundContent() {
         setSessionRequestCount((c) => c + 1);
       } else {
         const startMs = Date.now();
-        const result = await sendRpcRequest(gatewayBase, mode, body, activeApiKey?.prefix);
+        const result = await sendRpcRequest(gatewayBase, mode, body, activeApiKey?.prefix, simulateMode);
         const elapsed = Date.now() - startMs;
         setDurationMs(result.durationMs);
         setResponseTimeMs(elapsed);
@@ -670,19 +718,35 @@ function PlaygroundContent() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 pt-4">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={compareMode}
-                    onClick={() => { setCompareMode((v) => !v); setResponse(null); setCompareResponse(null); }}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-                      compareMode ? "bg-brand-500" : "bg-[var(--fyxvo-border-strong)]"
-                    }`}
-                  >
-                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${compareMode ? "translate-x-4" : "translate-x-0"}`} />
-                  </button>
-                  <span className="text-xs text-[var(--fyxvo-text-muted)]">Compare</span>
+                <div className="flex items-center gap-4 pt-4">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={compareMode}
+                      onClick={() => { setCompareMode((v) => !v); setResponse(null); setCompareResponse(null); }}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                        compareMode ? "bg-brand-500" : "bg-[var(--fyxvo-border-strong)]"
+                      }`}
+                    >
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${compareMode ? "translate-x-4" : "translate-x-0"}`} />
+                    </button>
+                    <span className="text-xs text-[var(--fyxvo-text-muted)]">Compare</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={simulateMode}
+                      onClick={() => setSimulateMode((v) => !v)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                        simulateMode ? "bg-amber-500" : "bg-[var(--fyxvo-border-strong)]"
+                      }`}
+                    >
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${simulateMode ? "translate-x-4" : "translate-x-0"}`} />
+                    </button>
+                    <span className="text-xs text-[var(--fyxvo-text-muted)]">Simulate</span>
+                  </div>
                 </div>
               </div>
 
@@ -706,7 +770,24 @@ function PlaygroundContent() {
               )}
 
               {/* Params + Examples */}
-              {selectedMethod.method === "decodeTransaction" ? (
+              {selectedMethod.isTraceLookup ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Parameters</p>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--fyxvo-text)]">
+                      Trace ID (UUID from X-Fyxvo-Trace-Id header)
+                      <span className="ml-1 text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={traceId}
+                      onChange={(e) => setTraceId(e.target.value)}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      className="w-full rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-3 py-2 font-mono text-sm text-[var(--fyxvo-text)] placeholder:text-[var(--fyxvo-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--fyxvo-accent)]"
+                    />
+                  </div>
+                </div>
+              ) : selectedMethod.method === "decodeTransaction" ? (
                 <div className="space-y-3">
                   <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Parameters</p>
                   <div>
@@ -774,10 +855,18 @@ function PlaygroundContent() {
                     </svg>
                     Sending…
                   </span>
-                ) : selectedMethod.method === "decodeTransaction" ? "Decode Transaction" : compareMode ? "Send (Standard + Priority)" : "Send Request"}
+                ) : selectedMethod.isTraceLookup ? "Look Up Trace" : selectedMethod.method === "decodeTransaction" ? "Decode Transaction" : compareMode ? "Send (Standard + Priority)" : "Send Request"}
               </Button>
             </CardContent>
           </Card>
+
+          {/* Simulation mode banner */}
+          {simulateMode && (
+            <div className="mb-3 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-400">
+              <span className="font-semibold">Simulation mode is active.</span>
+              {" "}Requests are free and not routed to Solana devnet. Real responses require a funded project balance.
+            </div>
+          )}
 
           {/* Loading progress bar */}
           {loading && (

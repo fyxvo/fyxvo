@@ -13,7 +13,7 @@ import { calculateRequestPrice, chooseFundingAsset } from "./pricing.js";
 import { PrismaGatewayRepository } from "./repository.js";
 import { HttpUpstreamRouter } from "./router.js";
 import { RedisGatewayStateStore } from "./state.js";
-import type { GatewayAppDependencies, GatewayMetricsSnapshot, JsonRpcPayload, RoutingMode } from "./types.js";
+import type { GatewayAppDependencies, GatewayMetricsSnapshot, JsonRpcPayload, RoutedRpcNode, RoutingMode } from "./types.js";
 
 const jsonRpcRequestSchema = z.object({
   jsonrpc: z.literal("2.0"),
@@ -171,6 +171,34 @@ async function sendGatewayError(
 
 const STARTUP_TIME_MS = Date.now();
 
+// ---------------------------------------------------------------------------
+// In-memory circuit breaker (per upstream URL)
+// ---------------------------------------------------------------------------
+
+const upstreamFailures = new Map<string, { count: number; openUntil: number }>();
+
+function isCircuitOpen(url: string): boolean {
+  const state = upstreamFailures.get(url);
+  if (!state) return false;
+  if (state.openUntil > Date.now()) return true;
+  // Reset after expiry
+  upstreamFailures.delete(url);
+  return false;
+}
+
+function recordUpstreamFailure(url: string): void {
+  const state = upstreamFailures.get(url) ?? { count: 0, openUntil: 0 };
+  state.count += 1;
+  if (state.count >= 5) {
+    state.openUntil = Date.now() + 30_000; // 30 second timeout
+  }
+  upstreamFailures.set(url, state);
+}
+
+function recordUpstreamSuccess(url: string): void {
+  upstreamFailures.delete(url);
+}
+
 export async function buildGatewayApp(input: GatewayAppDependencies) {
   const app = Fastify({
     logger: input.logger ?? false,
@@ -192,6 +220,7 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
 
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);
+    reply.header("x-fyxvo-trace-id", request.id);
     reply.header("cache-control", "no-store");
     reply.header("x-content-type-options", "nosniff");
     reply.header("x-frame-options", "DENY");
@@ -211,6 +240,7 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
     let projectId: string | undefined;
     let apiKeyId: string | undefined;
     let statusCode = 500;
+    let upstreamNodes: RoutedRpcNode[] = [];
 
     try {
       const payload = parseJsonRpcPayload(request.body);
@@ -347,11 +377,12 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
       }
 
       const pricing = calculateRequestPrice(payload, mode, input.env);
-      const [fundingState, spendState, upstreamNodes] = await Promise.all([
+      const [fundingState, spendState, fetchedNodes] = await Promise.all([
         input.balanceResolver.getProjectFundingState(projectAccess.project),
         input.stateStore.getProjectSpend(projectAccess.project.id),
         input.repository.listUpstreamNodes(projectAccess.project.id)
       ]);
+      upstreamNodes = fetchedNodes;
 
       const fundingDecision = chooseFundingAsset({
         funding: fundingState,
@@ -372,11 +403,15 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
         throw new GatewayHttpError(503, "no_upstream_nodes", "No healthy Solana upstream nodes are configured.");
       }
 
+      // Filter nodes whose circuit is open before routing
+      const openNodes = upstreamNodes.filter((node) => !isCircuitOpen(node.endpoint));
+      const routingNodes = openNodes.length > 0 ? openNodes : upstreamNodes;
+
       const routed = await input.router.route({
         mode,
         payload,
         serializedBody: serializeRpcPayload(payload),
-        nodes: upstreamNodes,
+        nodes: routingNodes,
         timeoutMs:
           mode === "priority"
             ? input.env.GATEWAY_PRIORITY_TIMEOUT_MS
@@ -385,6 +420,13 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
 
       const success = routed.statusCode < 500 && !routed.hasJsonRpcError;
       const durationMs = Date.now() - startedAt;
+
+      // Record circuit breaker outcome for the used upstream node
+      if (success) {
+        recordUpstreamSuccess(routed.node.endpoint);
+      } else {
+        recordUpstreamFailure(routed.node.endpoint);
+      }
 
       await input.stateStore.recordMetric({
         mode,
@@ -455,6 +497,10 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
         normalizedError.message.includes("All upstream nodes failed")
       ) {
         statusCode = 503;
+        // Record a circuit breaker failure for all nodes that were tried
+        for (const node of upstreamNodes) {
+          recordUpstreamFailure(node.endpoint);
+        }
         app.log.warn(
           {
             event: "gateway.upstream.exhausted",
@@ -612,6 +658,12 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
       },
       database,
       metrics: summary,
+      upstreamCircuits: Array.from(upstreamFailures.entries()).map(([url, state]) => ({
+        url,
+        open: state.openUntil > Date.now(),
+        failures: state.count,
+        nextRetryAt: state.openUntil > 0 ? new Date(state.openUntil).toISOString() : null,
+      })),
       timestamp: new Date().toISOString()
     });
   });

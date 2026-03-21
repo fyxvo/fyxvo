@@ -541,6 +541,74 @@ export default function ProjectPage({
         </section>
       ) : null}
 
+      {project.publicSlug ? (
+        <section>
+          <details className="rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)]">
+            <summary className="cursor-pointer select-none px-5 py-4 text-sm font-medium text-[var(--fyxvo-text)]">
+              Status Badges
+            </summary>
+            <div className="border-t border-[var(--fyxvo-border)] px-5 py-5 space-y-6">
+              {/* GitHub README badge */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">GitHub README</p>
+                <p className="text-sm text-[var(--fyxvo-text-soft)]">Paste this into your repository README:</p>
+                <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] p-3">
+                  <pre className="overflow-x-auto font-mono text-xs text-[var(--fyxvo-text-soft)] whitespace-pre-wrap break-all">{`[![Fyxvo Gateway](https://img.shields.io/badge/fyxvo-gateway-brightgreen)](https://www.fyxvo.com/p/${project.publicSlug})`}</pre>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CopyButton value={`[![Fyxvo Gateway](https://img.shields.io/badge/fyxvo-gateway-brightgreen)](https://www.fyxvo.com/p/${project.publicSlug})`} label="Copy markdown" />
+                  {/* Preview */}
+                  <a
+                    href={`https://www.fyxvo.com/p/${project.publicSlug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white"
+                  >
+                    fyxvo-gateway
+                  </a>
+                </div>
+              </div>
+
+              {/* Notion / Confluence */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Notion / Confluence</p>
+                <p className="text-sm text-[var(--fyxvo-text-soft)]">
+                  Notion does not support live embed badges. Share your public project page instead:
+                </p>
+                <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] p-3 flex items-center justify-between gap-3">
+                  <a
+                    href={`https://www.fyxvo.com/p/${project.publicSlug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs text-[var(--fyxvo-brand)] hover:underline break-all"
+                  >
+                    {`https://www.fyxvo.com/p/${project.publicSlug}`}
+                  </a>
+                  <CopyButton value={`https://www.fyxvo.com/p/${project.publicSlug}`} className="shrink-0" />
+                </div>
+              </div>
+
+              {/* General iframe */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Iframe embed</p>
+                <p className="text-sm text-[var(--fyxvo-text-soft)]">Embed a live project widget on any HTML page:</p>
+                <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] p-3">
+                  <pre className="overflow-x-auto font-mono text-xs text-[var(--fyxvo-text-soft)] whitespace-pre-wrap break-all">{`<iframe src="https://www.fyxvo.com/widget/project/${project.id}" width="300" height="80" frameborder="0"></iframe>`}</pre>
+                </div>
+                <div className="flex items-center gap-3">
+                  <CopyButton value={`<iframe src="https://www.fyxvo.com/widget/project/${project.id}" width="300" height="80" frameborder="0"></iframe>`} label="Copy iframe" />
+                  {/* Preview */}
+                  <div className="inline-flex items-center gap-2 rounded border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-3 py-1.5 text-xs text-[var(--fyxvo-text-muted)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    fyxvo widget · 300×80
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+        </section>
+      ) : null}
+
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>

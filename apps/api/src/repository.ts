@@ -2007,6 +2007,71 @@ export class PrismaApiRepository implements ApiRepository {
       })),
     };
   }
+
+  async getLatencyHeatmap(projectId: string, range: "24h" | "7d" | "30d"): Promise<number[][]> {
+    const ms = range === "24h" ? 86_400_000 : range === "7d" ? 7 * 86_400_000 : 30 * 86_400_000;
+    const since = new Date(Date.now() - ms);
+    const rows = await this.prisma.requestLog.findMany({
+      where: { projectId, createdAt: { gte: since } },
+      select: { createdAt: true, durationMs: true },
+    });
+    const sums: number[][] = Array.from({ length: 24 }, () => Array(7).fill(0));
+    const counts: number[][] = Array.from({ length: 24 }, () => Array(7).fill(0));
+    for (const r of rows) {
+      const d = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt);
+      const hour = d.getHours();
+      const day = d.getDay();
+      sums[hour]![day]! += r.durationMs;
+      counts[hour]![day]! += 1;
+    }
+    return sums.map((row, h) => row.map((sum, d) => counts[h]![d]! > 0 ? Math.round(sum / counts[h]![d]!) : 0));
+  }
+
+  async findRequestByTraceId(projectId: string, traceId: string): Promise<Record<string, unknown> | null> {
+    const log = await this.prisma.requestLog.findFirst({
+      where: { projectId, requestId: traceId },
+      select: {
+        id: true, requestId: true, method: true, durationMs: true,
+        statusCode: true, route: true, service: true, createdAt: true,
+      },
+    });
+    if (!log) return null;
+    return {
+      ...log,
+      createdAt: log.createdAt instanceof Date ? log.createdAt.toISOString() : String(log.createdAt),
+    };
+  }
+
+  async countRecentRequests(since: Date): Promise<number> {
+    return this.prisma.requestLog.count({ where: { createdAt: { gte: since } } });
+  }
+
+  async getSuccessRateTrend(projectId: string, range: "24h" | "7d" | "30d"): Promise<Array<{ time: string; successRate: number }>> {
+    const ms = range === "24h" ? 86_400_000 : range === "7d" ? 7 * 86_400_000 : 30 * 86_400_000;
+    const since = new Date(Date.now() - ms);
+    const bucketHours = range === "24h" ? 1 : range === "7d" ? 4 : 24;
+    const rows = await this.prisma.requestLog.findMany({
+      where: { projectId, createdAt: { gte: since } },
+      select: { createdAt: true, statusCode: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const buckets = new Map<string, { total: number; success: number }>();
+    for (const r of rows) {
+      const d = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt);
+      const bucketMs = Math.floor(d.getTime() / (bucketHours * 3_600_000)) * (bucketHours * 3_600_000);
+      const key = new Date(bucketMs).toISOString();
+      const b = buckets.get(key) ?? { total: 0, success: 0 };
+      b.total += 1;
+      if (r.statusCode < 400) b.success += 1;
+      buckets.set(key, b);
+    }
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([time, { total, success }]) => ({
+        time,
+        successRate: total > 0 ? Math.round((success / total) * 1000) / 10 : 100,
+      }));
+  }
 }
 
 export function hashRequestBody(body: unknown): string {

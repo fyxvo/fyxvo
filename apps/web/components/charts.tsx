@@ -75,7 +75,7 @@ export function LineChartCard({
                       <stop offset="100%" stopColor="var(--fyxvo-brand)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
+                  <CartesianGrid stroke="var(--fyxvo-border)" vertical={false} />
                   <XAxis
                     dataKey="label"
                     tickLine={false}
@@ -152,7 +152,7 @@ export function BarChartCard({
             {mounted ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={points} barSize={26}>
-                  <CartesianGrid stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
+                  <CartesianGrid stroke="var(--fyxvo-border)" vertical={false} />
                   <XAxis
                     dataKey="label"
                     tickLine={false}

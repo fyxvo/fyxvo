@@ -25,6 +25,7 @@ const NAV_SECTIONS = [
   { id: "public-profiles", label: "Public Project Pages", keywords: "public profile page slug badge readme status latency" },
   { id: "sdk-reference", label: "SDK Reference", keywords: "sdk library reference types api endpoint paths" },
   { id: "rate-limits", label: "Rate Limits", keywords: "rate limit 429 throttle bandwidth quota scope" },
+  { id: "simulation-mode", label: "Simulation Mode", keywords: "simulation mode simulate free devnet canned response getHealth getSlot getBalance getLatestBlockhash" },
   { id: "api-versioning", label: "API Versioning", keywords: "api versioning v1 breaking changes deprecation header x-fyxvo-api-version" },
   { id: "troubleshooting", label: "Troubleshooting", keywords: "error debug fix 401 403 402 500 403 common issues" },
   { id: "error-reference", label: "Error Reference", keywords: "error reference codes 401 403 402 429 503 gateway api errors" },
@@ -1087,6 +1088,67 @@ if (sig !== computed) return res.status(401).send('Unauthorized');`}
                 <code className="text-brand-600 dark:text-brand-300">x-ratelimit-reset</code> headers. Use these to
                 implement adaptive backoff without waiting for a 429.
               </Notice>
+            </div>
+          </section>
+
+          {/* ── Simulation Mode ──────────────────────────────────── */}
+          <section id="simulation-mode">
+            <SectionHeading
+              id="simulation-mode"
+              eyebrow="Gateway"
+              title="Simulation Mode"
+              description="Test against the gateway without using your project balance or touching Solana devnet."
+            />
+            <div className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-5">
+                  <div className="text-xs uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300 mb-3">
+                    What simulation mode does
+                  </div>
+                  <ul className="space-y-1.5 text-sm text-[var(--fyxvo-text-soft)]">
+                    <li>Requests are free — no lamports are deducted.</li>
+                    <li>Traffic is not forwarded to Solana devnet.</li>
+                    <li>The gateway returns canned, deterministic responses.</li>
+                    <li>Useful for SDK integration tests and CI pipelines.</li>
+                  </ul>
+                </div>
+                <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-5">
+                  <div className="text-xs uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300 mb-3">
+                    Supported methods
+                  </div>
+                  <ul className="space-y-1.5 text-sm font-mono text-[var(--fyxvo-text-soft)]">
+                    <li>getHealth</li>
+                    <li>getSlot</li>
+                    <li>getBalance</li>
+                    <li>getLatestBlockhash</li>
+                  </ul>
+                  <p className="mt-3 text-xs text-[var(--fyxvo-text-muted)]">
+                    Other methods may pass through or return a stub error in simulation mode.
+                  </p>
+                </div>
+              </div>
+              <CodeBlock
+                label="Enable simulation mode — append ?simulate=true"
+                code={`# Standard path with simulation enabled
+curl -X POST "${webEnv.gatewayBaseUrl}/rpc?simulate=true" \\
+  -H "content-type: application/json" \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"getHealth","params":[]}'
+
+# Response (canned — not from devnet):
+# {"jsonrpc":"2.0","id":1,"result":"ok"}`}
+              />
+              <div className="rounded-[1.5rem] border border-amber-500/30 bg-amber-500/10 p-5">
+                <div className="text-xs uppercase tracking-[0.16em] text-amber-600 dark:text-amber-400 mb-2">
+                  Production integrations
+                </div>
+                <p className="text-sm text-[var(--fyxvo-text-soft)]">
+                  Simulation mode is intended for development and testing only. Production
+                  integrations must omit the <code className="font-mono text-xs">?simulate=true</code>{" "}
+                  parameter to ensure requests are routed to Solana devnet and fees are applied
+                  correctly against your project balance.
+                </p>
+              </div>
             </div>
           </section>
 

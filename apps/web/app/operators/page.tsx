@@ -796,6 +796,7 @@ export default function OperatorsPage() {
                     border: "1px solid var(--fyxvo-border)",
                     borderRadius: 8,
                     fontSize: 12,
+                    color: "var(--fyxvo-text)",
                   }}
                 />
                 <Bar dataKey="requests" fill="var(--fyxvo-brand, #7c3aed)" radius={[4, 4, 0, 0]} />
