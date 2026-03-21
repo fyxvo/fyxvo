@@ -37,9 +37,10 @@ import {
 import { GatewayHealthCard } from "../../components/gateway-health";
 import { OnboardingChecklist } from "../../components/onboarding-checklist";
 import { TosModal } from "../../components/tos-modal";
+import { FirstRequestCelebration } from "../../components/first-request-celebration";
 import type { AdminOverview, NetworkStats, PortalProject } from "../../lib/types";
 import { webEnv } from "../../lib/env";
-import { getNetworkStats, getActiveAnnouncement, getWhatsNew, dismissWhatsNew } from "../../lib/api";
+import { getNetworkStats, getActiveAnnouncement, getWhatsNew, dismissWhatsNew, listProjectMembers } from "../../lib/api";
 
 interface ProjectHealthInput {
   activated: boolean;
@@ -365,6 +366,14 @@ export default function DashboardPage() {
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
   const [whatsNew, setWhatsNew] = useState<{ id: string; title: string; description: string; version: string } | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("onboarding_banner_dismissed") === "1");
+  const [pendingInvitations, setPendingInvitations] = useState<Array<{
+    id: string;
+    projectId: string;
+    projectName: string;
+    inviterWallet: string;
+    invitedAt: string;
+  }>>([]);
+  const [celebrationProject, setCelebrationProject] = useState<PortalProject | null>(null);
 
   useEffect(() => {
     void getNetworkStats().then(setNetworkStats).catch(() => {});
@@ -382,6 +391,44 @@ export default function DashboardPage() {
       if (data.item) setWhatsNew(data.item);
     }).catch(() => undefined);
   }, [portal.token, portal.walletPhase]);
+
+  // Pending invitations: scan all projects for members where userId === portal.user.id and acceptedAt is null
+  useEffect(() => {
+    if (!portal.token || portal.walletPhase !== "authenticated" || !portal.user || portal.projects.length === 0) return;
+    const userId = portal.user.id;
+    const tok = portal.token;
+    void Promise.all(
+      portal.projects.map((project) =>
+        listProjectMembers(project.id, tok)
+          .then((data) => {
+            const pending = data.items.filter(
+              (m) => m.userId === userId && m.acceptedAt === null
+            );
+            return pending.map((m) => ({
+              id: m.id,
+              projectId: project.id,
+              projectName: project.name,
+              inviterWallet: project.owner.walletAddress,
+              invitedAt: m.invitedAt,
+            }));
+          })
+          .catch(() => [])
+      )
+    ).then((results) => {
+      setPendingInvitations(results.flat());
+    });
+  }, [portal.token, portal.walletPhase, portal.user, portal.projects]);
+
+  // First-request celebration
+  useEffect(() => {
+    if (portal.walletPhase !== "authenticated" || portal.loading) return;
+    const candidate = portal.projects.find(
+      (p) => (p._count?.requestLogs ?? 0) > 0 && !p.firstRequestCelebrationShown
+    );
+    if (candidate) {
+      setCelebrationProject(candidate);
+    }
+  }, [portal.projects, portal.walletPhase, portal.loading]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -406,6 +453,46 @@ export default function DashboardPage() {
     setName("");
     setDescription("");
     setProjectTemplate("blank");
+  }
+
+  function handleCelebrationDismiss() {
+    const project = celebrationProject;
+    setCelebrationProject(null);
+    if (!project || !portal.token) return;
+    // Best-effort PATCH — dismiss in session regardless of server response
+    void fetch(new URL(`/v1/projects/${project.id}`, webEnv.apiBaseUrl), {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${portal.token}`,
+      },
+      body: JSON.stringify({ firstRequestCelebrationShown: true }),
+    }).catch(() => undefined);
+  }
+
+  async function handleAcceptInvitation(invitationId: string, projectId: string) {
+    if (!portal.token) return;
+    await fetch(
+      new URL(`/v1/projects/${projectId}/members/${invitationId}/accept`, webEnv.apiBaseUrl),
+      {
+        method: "PATCH",
+        headers: { authorization: `Bearer ${portal.token}` },
+      }
+    ).catch(() => undefined);
+    setPendingInvitations((prev) => prev.filter((inv) => inv.id !== invitationId));
+    await portal.refresh();
+  }
+
+  async function handleDeclineInvitation(invitationId: string) {
+    if (!portal.token) return;
+    setPendingInvitations((prev) => prev.filter((inv) => inv.id !== invitationId));
+    await fetch(
+      new URL(`/v1/me/invitations/${invitationId}`, webEnv.apiBaseUrl),
+      {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${portal.token}` },
+      }
+    ).catch(() => undefined);
   }
 
   // Navigate to project page after successful creation
@@ -533,6 +620,49 @@ export default function DashboardPage() {
   return (
     <div className="space-y-10 lg:space-y-12">
       <TosModal />
+      {celebrationProject ? (
+        <FirstRequestCelebration
+          project={celebrationProject}
+          onDismiss={handleCelebrationDismiss}
+        />
+      ) : null}
+      {pendingInvitations.length > 0 ? (
+        <div className="space-y-3">
+          {pendingInvitations.map((inv) => (
+            <div
+              key={inv.id}
+              className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3"
+            >
+              <div>
+                <p className="text-sm font-medium text-[var(--fyxvo-text)]">
+                  You have been invited to{" "}
+                  <span className="font-semibold">{inv.projectName}</span>
+                </p>
+                <p className="text-xs text-[var(--fyxvo-text-muted)]">
+                  Invited by {inv.inviterWallet.slice(0, 8)}…{inv.inviterWallet.slice(-4)} on{" "}
+                  {new Date(inv.invitedAt).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void handleAcceptInvitation(inv.id, inv.projectId)}
+                >
+                  Accept
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void handleDeclineInvitation(inv.id)}
+                >
+                  Decline
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {announcement && !announcementDismissed && (
         <div className={`flex items-start justify-between gap-3 rounded-xl border px-4 py-3 ${
           announcement.severity === "critical"

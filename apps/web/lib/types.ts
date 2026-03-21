@@ -31,6 +31,8 @@ export interface PortalProject {
   readonly leaderboardVisible?: boolean;
   readonly dailyCostAlertLamports?: string | null;
   readonly archivedAt: string | null;
+  readonly firstRequestCelebrationShown?: boolean;
+  readonly hasTraffic?: boolean;
   readonly owner: PortalUser;
   readonly _count?: {
     readonly apiKeys: number;

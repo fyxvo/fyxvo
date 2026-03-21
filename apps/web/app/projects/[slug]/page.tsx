@@ -28,6 +28,7 @@ import { fundingTrend } from "../../../lib/sample-data";
 import { formatDuration, formatInteger, shortenAddress } from "../../../lib/format";
 import { webEnv } from "../../../lib/env";
 import { getProjectActivity } from "../../../lib/api";
+import { RealtimeFeed } from "./realtime-feed";
 import type { ProjectAnalytics } from "../../../lib/types";
 
 const requestColumns: readonly TableColumn<ProjectAnalytics["recentRequests"][number]>[] = [
@@ -68,7 +69,7 @@ export default function ProjectPage({
   readonly params: { slug: string };
 }) {
   const portal = usePortal();
-  const [activeTab, setActiveTab] = useState<"overview" | "activity">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "activity" | "realtime">("overview");
   const [activityLog, setActivityLog] = useState<Array<{ id: string; action: string; details: Record<string, unknown> | null; actorWallet: string | null; createdAt: string }>>([]);
   const [activityLoaded, setActivityLoaded] = useState(false);
 
@@ -229,7 +230,7 @@ export default function ProjectPage({
       ) : null}
 
       <div className="flex gap-1 border-b border-[var(--fyxvo-border)]">
-        {(["overview", "activity"] as const).map((tab) => (
+        {(["overview", "activity", "realtime"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -278,6 +279,18 @@ export default function ProjectPage({
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "realtime" && portal.walletPhase === "authenticated" && portal.token && (
+        <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+          <CardHeader>
+            <CardTitle>Real-time Request Feed</CardTitle>
+            <CardDescription>Recent requests for this project, refreshed every 5 seconds.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RealtimeFeed projectId={project.id} token={portal.token} />
           </CardContent>
         </Card>
       )}

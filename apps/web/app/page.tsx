@@ -501,6 +501,14 @@ export default async function HomePage() {
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <CopyButton value={liveDevnetState.programId} label="Copy program ID" />
+                  <Link
+                    href={`https://explorer.solana.com/address/${liveDevnetState.programId}?cluster=devnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-md border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] px-2 py-1 text-xs text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)] transition-colors"
+                  >
+                    View on Explorer &#8599;
+                  </Link>
                 </div>
               </div>
               <div className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-5">

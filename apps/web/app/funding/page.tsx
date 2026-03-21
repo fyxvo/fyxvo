@@ -130,6 +130,64 @@ export default function FundingPage() {
         </Notice>
       ) : null}
 
+      {/* Devnet SOL helper */}
+      <section className="rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-6 space-y-5">
+        <div>
+          <h3 className="text-base font-semibold text-[var(--fyxvo-text)]">Get Devnet SOL</h3>
+          <p className="mt-1 text-sm text-[var(--fyxvo-text-muted)]">
+            Devnet SOL is free test currency. Your wallet must have devnet SOL before you can fund a project.
+          </p>
+        </div>
+
+        {portal.walletPhase === "authenticated" && portal.walletAddress ? (
+          <div className="flex items-center gap-3 rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] px-4 py-3">
+            <span className="text-xs text-[var(--fyxvo-text-muted)] shrink-0">Your wallet</span>
+            <code className="flex-1 truncate font-mono text-xs text-[var(--fyxvo-text)]">
+              {portal.walletAddress}
+            </code>
+            <button
+              type="button"
+              onClick={() => void navigator.clipboard.writeText(portal.walletAddress ?? "")}
+              className="shrink-0 rounded border border-[var(--fyxvo-border)] px-2 py-1 text-xs text-[var(--fyxvo-text-muted)] hover:bg-[var(--fyxvo-bg-elevated)] transition"
+            >
+              Copy
+            </button>
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="https://faucet.solana.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] px-4 py-2 text-sm font-medium text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)] transition-colors"
+          >
+            Solana Faucet &#8594;
+          </a>
+          <a
+            href="https://solana.com/docs/clients/javascript-reference#connection-requestairdrop"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] px-4 py-2 text-sm font-medium text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)] transition-colors"
+          >
+            Web3.js Airdrop &#8594;
+          </a>
+        </div>
+
+        <div className="overflow-hidden rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)]">
+          <div className="border-b border-[var(--fyxvo-border)] px-4 py-2">
+            <span className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
+              Programmatic airdrop (devnet only)
+            </span>
+          </div>
+          <pre className="overflow-x-auto p-4 text-xs leading-6 text-[var(--fyxvo-text-soft)]">{`import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+
+const connection = new Connection("https://api.devnet.solana.com");
+const pubkey = new PublicKey("YOUR_WALLET_ADDRESS");
+await connection.requestAirdrop(pubkey, 2 * LAMPORTS_PER_SOL);`}</pre>
+        </div>
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
         <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
           <CardHeader>

@@ -2072,6 +2072,95 @@ export class PrismaApiRepository implements ApiRepository {
         successRate: total > 0 ? Math.round((success / total) * 1000) / 10 : 100,
       }));
   }
+
+  async transferProjectOwnership(projectId: string, newOwnerId: string, previousOwnerId: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.project.update({
+        where: { id: projectId },
+        data: { ownerId: newOwnerId },
+      }),
+      // Ensure previous owner remains a member
+      this.prisma.projectMember.upsert({
+        where: { projectId_userId: { projectId, userId: previousOwnerId } },
+        update: { role: "member" },
+        create: {
+          projectId,
+          userId: previousOwnerId,
+          role: "member",
+          acceptedAt: new Date(),
+        },
+      }),
+    ]);
+  }
+
+  async listWebhookEvents(projectId: string): Promise<Array<{
+    id: string;
+    webhookId: string;
+    webhookUrl: string;
+    webhookName: string;
+    eventType: string;
+    status: string;
+    responseStatus: number | null;
+    attemptNumber: number;
+    createdAt: string;
+  }>> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const rows = await db.webhookDelivery.findMany({
+      where: { webhook: { projectId } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        webhookId: true,
+        eventType: true,
+        status: true,
+        responseStatus: true,
+        attemptNumber: true,
+        createdAt: true,
+        webhook: { select: { url: true, events: true } },
+      },
+    }) as Array<{
+      id: string;
+      webhookId: string;
+      eventType: string;
+      status: string;
+      responseStatus: number | null;
+      attemptNumber: number;
+      createdAt: Date | string;
+      webhook: { url: string; events: unknown };
+    }>;
+    return rows.map((r) => ({
+      id: r.id,
+      webhookId: r.webhookId,
+      webhookUrl: r.webhook.url,
+      webhookName: r.webhook.url,
+      eventType: r.eventType,
+      status: r.status,
+      responseStatus: r.responseStatus,
+      attemptNumber: r.attemptNumber,
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+    }));
+  }
+
+  async redeliverWebhookEvent(deliveryId: string, projectId: string): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const original = await db.webhookDelivery.findFirst({
+      where: { id: deliveryId, webhook: { projectId } },
+      select: { webhookId: true, eventType: true, payload: true },
+    }) as { webhookId: string; eventType: string; payload: unknown } | null;
+    if (!original) return;
+    await db.webhookDelivery.create({
+      data: {
+        webhookId: original.webhookId,
+        eventType: original.eventType,
+        payload: original.payload as object,
+        attemptNumber: 1,
+        status: "pending",
+      },
+    });
+  }
 }
 
 export function hashRequestBody(body: unknown): string {

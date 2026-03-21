@@ -12,6 +12,7 @@ import { PRICING_LAMPORTS } from "@fyxvo/config";
 const NAV_SECTIONS = [
   { id: "introduction", label: "Introduction", keywords: "overview what is fyxvo devnet rpc relay product" },
   { id: "quickstart", label: "Quickstart", keywords: "start connect wallet create project fund api key request curl" },
+  { id: "quickstarts", label: "Quickstarts", keywords: "framework nextjs react node nodejs python rust sdk guide quickstart" },
   { id: "authentication", label: "Authentication", keywords: "wallet auth challenge verify token jwt bearer solana phantom" },
   { id: "funding", label: "Funding", keywords: "sol lamports treasury deposit balance credits prepare sign transaction" },
   { id: "standard-rpc", label: "Standard RPC", keywords: "rpc request jsonrpc endpoint gateway x-api-key getHealth getSlot" },
@@ -90,9 +91,13 @@ function SectionHeading({
   );
 }
 
+const QUICKSTART_FRAMEWORKS = ["Next.js", "React", "Node.js", "Python", "Rust"] as const;
+type QuickstartFramework = (typeof QUICKSTART_FRAMEWORKS)[number];
+
 export default function DocsPage() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [activeQuickstart, setActiveQuickstart] = useState<QuickstartFramework>("Next.js");
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -627,6 +632,162 @@ curl -s -X POST ${webEnv.gatewayBaseUrl}/priority \\
             <Notice tone="success" title="That's it">
               Your first request is now in the relay logs. Check the Analytics page to see it appear within seconds. Fund more SOL to increase capacity — {PRICING_LAMPORTS.standard.toLocaleString()} lamports per standard request, {PRICING_LAMPORTS.computeHeavy.toLocaleString()} per compute-heavy, {PRICING_LAMPORTS.priority.toLocaleString()} per priority.
             </Notice>
+          </section>
+
+          {/* ── Framework Quickstarts ────────────────────────────── */}
+          <section id="quickstarts">
+            <SectionHeading
+              id="quickstarts"
+              eyebrow="Quickstarts"
+              title="Framework Quickstarts"
+              description="Ready-to-run examples for the most common Solana development environments."
+            />
+            <div className="flex gap-1 border-b border-[var(--fyxvo-border)] mb-6">
+              {QUICKSTART_FRAMEWORKS.map((fw) => (
+                <button
+                  key={fw}
+                  type="button"
+                  onClick={() => setActiveQuickstart(fw)}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    activeQuickstart === fw
+                      ? "border-b-2 border-brand-500 text-[var(--fyxvo-text)]"
+                      : "text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)]"
+                  }`}
+                >
+                  {fw}
+                </button>
+              ))}
+            </div>
+
+            {activeQuickstart === "Next.js" && (
+              <div className="space-y-4">
+                <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+                  Server component example using <code className="rounded bg-[var(--fyxvo-panel-soft)] px-1 py-0.5 font-mono text-xs">@solana/web3.js</code> in a Next.js App Router route handler.
+                </p>
+                <CodeBlock
+                  label="app/api/solana/route.ts"
+                  code={`// app/api/solana/route.ts
+import { Connection } from "@solana/web3.js";
+
+const connection = new Connection(
+  \`https://rpc.fyxvo.com/rpc?api-key=\${process.env.FYXVO_API_KEY}\`
+);
+
+export async function GET() {
+  const slot = await connection.getSlot();
+  return Response.json({ slot });
+}`}
+                />
+              </div>
+            )}
+
+            {activeQuickstart === "React" && (
+              <div className="space-y-4">
+                <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+                  Client component using the JSON-RPC protocol directly with <code className="rounded bg-[var(--fyxvo-panel-soft)] px-1 py-0.5 font-mono text-xs">fetch</code> and Vite environment variables.
+                </p>
+                <CodeBlock
+                  label="SlotDisplay.tsx"
+                  code={`import { useEffect, useState } from "react";
+
+const RPC_URL = \`https://rpc.fyxvo.com/rpc?api-key=\${import.meta.env.VITE_FYXVO_API_KEY}\`;
+
+export function SlotDisplay() {
+  const [slot, setSlot] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch(RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getSlot", params: [] }),
+    })
+      .then((r) => r.json())
+      .then((d) => setSlot(d.result as number));
+  }, []);
+
+  return <div>Current slot: {slot ?? "loading..."}</div>;
+}`}
+                />
+              </div>
+            )}
+
+            {activeQuickstart === "Node.js" && (
+              <div className="space-y-4">
+                <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+                  TypeScript Node.js script using the Fyxvo SDK to fetch the latest blockhash.
+                </p>
+                <CodeBlock
+                  label="index.ts"
+                  code={`import { FyxvoClient } from "@fyxvo/sdk";
+
+const client = new FyxvoClient({ apiKey: process.env.FYXVO_API_KEY! });
+
+async function main() {
+  const response = await client.rpc({
+    id: 1,
+    method: "getLatestBlockhash",
+    params: [],
+  });
+  console.log(response);
+}
+
+main();`}
+                />
+              </div>
+            )}
+
+            {activeQuickstart === "Python" && (
+              <div className="space-y-4">
+                <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+                  Python script using <code className="rounded bg-[var(--fyxvo-panel-soft)] px-1 py-0.5 font-mono text-xs">requests</code> to call the Fyxvo RPC endpoint.
+                </p>
+                <CodeBlock
+                  label="main.py"
+                  code={`import requests
+import os
+
+response = requests.post(
+    "https://rpc.fyxvo.com/rpc",
+    headers={"x-api-key": os.getenv("FYXVO_API_KEY")},
+    json={"jsonrpc": "2.0", "id": 1, "method": "getLatestBlockhash", "params": []},
+)
+print(response.json())`}
+                />
+              </div>
+            )}
+
+            {activeQuickstart === "Rust" && (
+              <div className="space-y-4">
+                <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">
+                  Rust async example using <code className="rounded bg-[var(--fyxvo-panel-soft)] px-1 py-0.5 font-mono text-xs">reqwest</code> and <code className="rounded bg-[var(--fyxvo-panel-soft)] px-1 py-0.5 font-mono text-xs">serde_json</code>.
+                </p>
+                <CodeBlock
+                  label="src/main.rs"
+                  code={`use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
+use serde_json::json;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let mut headers = HeaderMap::new();
+    headers.insert("x-api-key", HeaderValue::from_str(&std::env::var("FYXVO_API_KEY")?)?);
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+    let body = json!({"jsonrpc": "2.0", "id": 1, "method": "getLatestBlockhash", "params": []});
+
+    let resp = client
+        .post("https://rpc.fyxvo.com/rpc")
+        .headers(headers)
+        .json(&body)
+        .send()
+        .await?;
+
+    println!("{}", resp.text().await?);
+    Ok(())
+}`}
+                />
+              </div>
+            )}
           </section>
 
           {/* ── Authentication ───────────────────────────────────── */}

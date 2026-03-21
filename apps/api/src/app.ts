@@ -1751,8 +1751,14 @@ export async function buildApiApp(input: {
     })).min(1).max(50),
     projectContext: z.object({
       projectName: z.string().optional(),
+      projectNames: z.array(z.string()).optional(),
       balance: z.string().optional(),
+      totalBalanceSol: z.number().optional(),
       requestCount: z.number().optional(),
+      requestsLast7Days: z.number().optional(),
+      successRate: z.number().optional(),
+      gatewayStatus: z.string().optional(),
+      activeAnnouncements: z.array(z.string()).optional(),
     }).optional(),
   });
 
@@ -1953,8 +1959,12 @@ Standard /rpc endpoint is fine for:
 
 ## CURRENT USER CONTEXT
 ${projectContext?.projectName ? `- Active project: ${projectContext.projectName}` : "- No active project selected"}
+${projectContext?.projectNames?.length ? `- The user has ${projectContext.projectNames.length} project(s): ${projectContext.projectNames.join(", ")}.` : ""}
 ${projectContext?.balance ? `- Current balance: ${projectContext.balance}` : ""}
+${projectContext?.totalBalanceSol !== undefined ? `- Their total funded balance across projects is ${projectContext.totalBalanceSol.toFixed(4)} SOL.` : ""}
 ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectContext.requestCount.toLocaleString()}` : ""}
+${projectContext?.requestsLast7Days !== undefined ? `- They have made ${projectContext.requestsLast7Days} requests in the last 7 days.` : ""}
+${projectContext?.gatewayStatus ? `- Current gateway status: ${projectContext.gatewayStatus}.` : ""}
 
 ## GUIDELINES
 1. You are an AI. Be honest about uncertainty — if you don't know something specific to Fyxvo, say so.
@@ -2262,14 +2272,60 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
     return reply.send({ success: true });
   });
 
+  app.delete("/v1/me/invitations/:invitationId", async (request, reply) => {
+    const user = requireUser(request);
+    const { invitationId } = z.object({ invitationId: z.string().uuid() }).parse(request.params);
+    const member = await input.repository.findProjectMemberById(invitationId);
+    if (!member || member.userId !== user.id || member.acceptedAt) {
+      throw new HttpError(404, "not_found", "Pending invitation not found.");
+    }
+    await input.repository.deleteProjectMember(invitationId, member.projectId);
+    void input.repository.logActivity({
+      projectId: member.projectId,
+      userId: user.id,
+      action: "member.declined",
+      details: { memberId: invitationId },
+    }).catch(() => undefined);
+    return reply.status(204).send();
+  });
+
   app.delete("/v1/projects/:projectId/members/:memberId", async (request, reply) => {
     const user = requireUser(request);
     const { projectId, memberId } = z.object({ projectId: z.string().uuid(), memberId: z.string().uuid() }).parse(request.params);
     const project = await input.repository.findProjectById(projectId);
     if (!project || project.ownerId !== user.id) throw new HttpError(403, "forbidden", "Only the owner can remove members.");
+    const memberToRemove = await input.repository.findProjectMemberById(memberId);
     await input.repository.deleteProjectMember(memberId, projectId);
-    void input.repository.logActivity({ projectId, userId: user.id, action: "member.removed", details: { memberId } }).catch(() => undefined);
+    if (memberToRemove) {
+      // notify removed member
+      void input.repository.createNotification({
+        userId: memberToRemove.userId,
+        type: "member.removed",
+        title: "Removed from project",
+        message: `You have been removed from ${project.name}.`,
+      }).catch(() => undefined);
+      void input.repository.logActivity({ projectId, userId: user.id, action: "member.removed", details: { memberId } }).catch(() => undefined);
+    }
     return reply.status(204).send();
+  });
+
+  app.post("/v1/projects/:projectId/transfer-ownership", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params);
+    const { newOwnerId } = z.object({ newOwnerId: z.string().uuid() }).parse(request.body);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || project.ownerId !== user.id) throw new HttpError(403, "forbidden", "Only the current owner can transfer ownership.");
+    const newOwnerMember = await input.repository.findProjectMember(projectId, newOwnerId);
+    if (!newOwnerMember || !newOwnerMember.acceptedAt) throw new HttpError(400, "invalid_request", "New owner must be an accepted project member.");
+    await input.repository.transferProjectOwnership(projectId, newOwnerId, user.id);
+    void input.repository.createNotification({
+      userId: newOwnerId,
+      type: "project.ownership_transferred",
+      title: "Project ownership transferred",
+      message: `You are now the owner of ${project.name}.`,
+    }).catch(() => undefined);
+    void input.repository.logActivity({ projectId, userId: user.id, action: "ownership.transferred", details: { newOwnerId } }).catch(() => undefined);
+    return reply.send({ success: true });
   });
 
   // ── Public project profile ────────────────────────────────────────────────
@@ -2448,6 +2504,25 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
     if (!project || !canAccessProject(user, project)) throw new HttpError(404, "project_not_found", "Project not found.");
     const deliveries = await input.repository.getWebhookDeliveries(webhookId);
     return { items: deliveries };
+  });
+
+  app.get("/v1/projects/:projectId/webhooks/events", async (request) => {
+    const user = requireUser(request);
+    const { projectId } = z.object({ projectId: z.string().uuid() }).parse(request.params);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project) throw new HttpError(404, "not_found", "Project not found.");
+    if (!canAccessProject(user, project)) throw new HttpError(403, "forbidden", "Access denied.");
+    const events = await input.repository.listWebhookEvents(projectId);
+    return { items: events };
+  });
+
+  app.post("/v1/projects/:projectId/webhooks/events/:deliveryId/redeliver", async (request, reply) => {
+    const user = requireUser(request);
+    const { projectId, deliveryId } = z.object({ projectId: z.string().uuid(), deliveryId: z.string().uuid() }).parse(request.params);
+    const project = await input.repository.findProjectById(projectId);
+    if (!project || project.ownerId !== user.id) throw new HttpError(403, "forbidden", "Only the project owner can trigger redelivery.");
+    await input.repository.redeliverWebhookEvent(deliveryId, projectId);
+    return reply.status(202).send({ success: true });
   });
 
   // ── Performance analytics ─────────────────────────────────────────────────

@@ -107,8 +107,27 @@ export default async function PublicProjectPage({
             <p className="mt-2 text-sm text-[var(--fyxvo-text-muted)] font-mono">
               {project.slug}
             </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <a
+                href="https://explorer.solana.com/address/FQ5pyjBQvfadKPPxd66YXksgn8veYnjEw2R1g6aQnFaa?cluster=devnet"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+                style={{ borderColor: "var(--fyxvo-brand)", color: "var(--fyxvo-brand)" }}
+              >
+                ✓ Verified on Solana Devnet
+              </a>
+            </div>
           </div>
-          <PublicProjectActions publicSlug={publicSlug} />
+          <div className="flex flex-col items-end gap-2">
+            <PublicProjectActions publicSlug={publicSlug} />
+            <PublicProjectActions
+              publicSlug={publicSlug}
+              variant="share-x"
+              projectName={displayName}
+            />
+            <PublicProjectActions publicSlug={publicSlug} variant="qr-code" />
+          </div>
         </div>
 
         {/* Stats */}

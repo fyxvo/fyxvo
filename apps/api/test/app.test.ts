@@ -1016,6 +1016,9 @@ class MemoryApiRepository implements ApiRepository {
   async findRequestByTraceId(_projectId: string, _traceId: string): Promise<Record<string, unknown> | null> { return null; }
   async countRecentRequests(_since: Date): Promise<number> { return 0; }
   async getSuccessRateTrend(_projectId: string, _range: "24h" | "7d" | "30d"): Promise<Array<{ time: string; successRate: number }>> { return []; }
+  async transferProjectOwnership(_projectId: string, _newOwnerId: string, _previousOwnerId: string): Promise<void> { return Promise.resolve(); }
+  async listWebhookEvents(_projectId: string): Promise<Array<{ id: string; webhookId: string; webhookUrl: string; webhookName: string; eventType: string; status: string; responseStatus: number | null; attemptNumber: number; createdAt: string }>> { return []; }
+  async redeliverWebhookEvent(_deliveryId: string, _projectId: string): Promise<void> { return Promise.resolve(); }
 }
 
 async function createTestApp(options: { rateLimitMax?: number } = {}) {

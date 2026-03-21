@@ -185,6 +185,31 @@ export default function SettingsPage() {
   const [inviteWallet, setInviteWallet] = useState("");
   const [inviteSaving, setInviteSaving] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [cancellingInviteId, setCancellingInviteId] = useState<string | null>(null);
+
+  // Webhook event log
+  const [webhookEvents, setWebhookEvents] = useState<Array<{
+    id: string;
+    eventType: string;
+    webhookUrl: string;
+    status: "delivered" | "failed" | "pending";
+    responseCode: number | null;
+    createdAt: string;
+  }>>([]);
+  const [webhookEventsLoaded, setWebhookEventsLoaded] = useState(false);
+  const [redelivering, setRedelivering] = useState<string | null>(null);
+
+  // Archive modal
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [archiveReason, setArchiveReason] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
+
+  // Transfer ownership
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferTargetId, setTransferTargetId] = useState("");
+  const [transferConfirmText, setTransferConfirmText] = useState("");
+  const [transferring, setTransferring] = useState(false);
+  const [transferSuccess, setTransferSuccess] = useState(false);
 
   const isAuthenticated = portal.walletPhase === "authenticated";
 
@@ -288,12 +313,24 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!portal.token || !portal.selectedProject || !isAuthenticated) return;
     const projectId = portal.selectedProject.id;
-    listWebhooks(projectId, portal.token)
+    const tok = portal.token;
+    listWebhooks(projectId, tok)
       .then((data) => { setWebhooks(data.items); setWebhooksLoaded(true); })
       .catch(() => setWebhooksLoaded(true));
-    listProjectMembers(projectId, portal.token)
+    listProjectMembers(projectId, tok)
       .then((data) => { setMembers(data.items); setMembersLoaded(true); })
       .catch(() => setMembersLoaded(true));
+    fetch(new URL(`/v1/projects/${projectId}/webhooks/events`, webEnv.apiBaseUrl), {
+      headers: { authorization: `Bearer ${tok}` },
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const body = await res.json() as { items: Array<{ id: string; eventType: string; webhookUrl: string; status: "delivered" | "failed" | "pending"; responseCode: number | null; createdAt: string }> };
+        setWebhookEvents(body.items ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => setWebhookEventsLoaded(true));
   }, [portal.token, portal.selectedProject, isAuthenticated]);
 
   async function handleGenerateReferralCode() {
@@ -357,6 +394,90 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleCancelInvite(memberId: string) {
+    if (!portal.token || !portal.selectedProject) return;
+    setCancellingInviteId(memberId);
+    // Optimistic removal
+    const prev = members;
+    setMembers((current) => current.filter((m) => m.id !== memberId));
+    try {
+      await removeProjectMember(portal.selectedProject.id, memberId, portal.token);
+    } catch {
+      setMembers(prev);
+    } finally {
+      setCancellingInviteId(null);
+    }
+  }
+
+  async function handleArchiveProject(skip: boolean) {
+    if (!portal.token || !portal.selectedProject) return;
+    setArchiving(true);
+    try {
+      const patch: Record<string, unknown> = { archived: true };
+      if (!skip && archiveReason) {
+        patch.archiveReason = archiveReason;
+      }
+      await patchProject(portal.selectedProject.id, patch);
+      setArchiveModalOpen(false);
+      setArchiveReason(null);
+      await portal.refresh();
+    } finally {
+      setArchiving(false);
+    }
+  }
+
+  async function handleRedeliver(eventId: string) {
+    if (!portal.token || !portal.selectedProject) return;
+    setRedelivering(eventId);
+    try {
+      await fetch(
+        new URL(
+          `/v1/projects/${portal.selectedProject.id}/webhooks/events/${eventId}/redeliver`,
+          webEnv.apiBaseUrl
+        ),
+        {
+          method: "POST",
+          headers: { authorization: `Bearer ${portal.token}` },
+        }
+      );
+      setWebhookEvents((prev) =>
+        prev.map((ev) =>
+          ev.id === eventId ? { ...ev, status: "pending" as const } : ev
+        )
+      );
+    } finally {
+      setRedelivering(null);
+    }
+  }
+
+  async function handleTransferOwnership() {
+    if (!portal.token || !portal.selectedProject || !transferTargetId) return;
+    setTransferring(true);
+    try {
+      await fetch(
+        new URL(
+          `/v1/projects/${portal.selectedProject.id}/transfer-ownership`,
+          webEnv.apiBaseUrl
+        ),
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${portal.token}`,
+          },
+          body: JSON.stringify({ newOwnerId: transferTargetId }),
+        }
+      );
+      setTransferSuccess(true);
+      setTransferOpen(false);
+      setTransferTargetId("");
+      setTransferConfirmText("");
+      await portal.refresh();
+    } finally {
+      setTransferring(false);
+    }
+  }
+
   async function toggleNotifPref(key: keyof NonNullable<typeof notifPrefs>) {
     if (!portal.token || !notifPrefs) return;
     const next = { ...notifPrefs, [key]: !notifPrefs[key] };
@@ -397,8 +518,56 @@ export default function SettingsPage() {
   const estimatedLamports = totalRequests * 1000;
   const estimatedSol = (estimatedLamports / 1e9).toFixed(6);
 
+  const acceptedMembers = members.filter((m) => m.acceptedAt !== null && m.userId !== portal.user?.id);
+  const pendingInvitations = members.filter((m) => m.acceptedAt === null);
+
   return (
     <div className="space-y-8">
+      {/* Archive reason modal */}
+      {archiveModalOpen && portal.selectedProject ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" aria-modal="true" role="dialog">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setArchiveModalOpen(false)} aria-hidden="true" />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg-elevated)] p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-[var(--fyxvo-text)]">Archive this project?</h2>
+            <p className="mt-1 text-sm text-[var(--fyxvo-text-muted)]">Select a reason (optional) then confirm.</p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {(["No longer needed", "Migrating to another project", "Testing only", "Other"] as const).map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => setArchiveReason((prev) => (prev === reason ? null : reason))}
+                  className={`rounded-xl border px-3 py-2 text-left text-xs font-medium transition-colors ${
+                    archiveReason === reason
+                      ? "border-brand-500/50 bg-brand-500/10 text-[var(--fyxvo-text)]"
+                      : "border-[var(--fyxvo-border)] text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)]"
+                  }`}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => void handleArchiveProject(true)}
+                className="text-sm text-[var(--fyxvo-text-muted)] underline hover:text-[var(--fyxvo-text)]"
+                disabled={archiving}
+              >
+                Skip
+              </button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setArchiveModalOpen(false)} disabled={archiving}>
+                  Cancel
+                </Button>
+                <Button variant="danger" size="sm" onClick={() => void handleArchiveProject(false)} disabled={archiving}>
+                  {archiving ? "Archiving…" : "Confirm Archive"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <PageHeader
         eyebrow="Settings"
         title="Account, wallet, and workspace preferences."
@@ -854,6 +1023,18 @@ export default function SettingsPage() {
               <span className="font-mono text-sm text-[var(--fyxvo-text)]">{shortenAddress(portal.selectedProject.owner.walletAddress, 8, 8)}</span>
             ) : <span className="text-sm text-[var(--fyxvo-text-muted)]">No project selected</span>}
           </SettingRow>
+          {portal.selectedProject && !portal.selectedProject.archivedAt ? (
+            <SettingRow label="Archive project" description="Archive this project to hide it from active views. It can be restored later.">
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setArchiveModalOpen(true)}
+                disabled={!isAuthenticated || !portal.token}
+              >
+                Archive
+              </Button>
+            </SettingRow>
+          ) : null}
         </SectionCard>
 
         {/* Webhooks */}
@@ -911,22 +1092,84 @@ export default function SettingsPage() {
                 {webhookSaving ? "Adding…" : "Add webhook"}
               </Button>
             </div>
+
+            {/* Webhook Event Log */}
+            <div className="border-t border-[var(--fyxvo-border)] pt-4 space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Event Log</p>
+              {!webhookEventsLoaded ? (
+                <p className="text-sm text-[var(--fyxvo-text-muted)]">Loading…</p>
+              ) : webhookEvents.length === 0 ? (
+                <p className="text-sm text-[var(--fyxvo-text-muted)]">No webhook events recorded yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-[var(--fyxvo-border)]">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)]">
+                        <th className="px-3 py-2 text-left font-medium text-[var(--fyxvo-text-muted)]">Event Type</th>
+                        <th className="px-3 py-2 text-left font-medium text-[var(--fyxvo-text-muted)]">Webhook URL</th>
+                        <th className="px-3 py-2 text-left font-medium text-[var(--fyxvo-text-muted)]">Status</th>
+                        <th className="px-3 py-2 text-left font-medium text-[var(--fyxvo-text-muted)]">Code</th>
+                        <th className="px-3 py-2 text-left font-medium text-[var(--fyxvo-text-muted)]">When</th>
+                        <th className="px-3 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {webhookEvents.map((ev) => (
+                        <tr key={ev.id} className="border-b border-[var(--fyxvo-border)] last:border-0">
+                          <td className="px-3 py-2 font-mono text-[var(--fyxvo-text)]">{ev.eventType}</td>
+                          <td className="px-3 py-2 font-mono text-[var(--fyxvo-text-muted)] max-w-[12rem] truncate">{ev.webhookUrl}</td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                ev.status === "delivered"
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                  : ev.status === "failed"
+                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                  : "bg-[var(--fyxvo-panel-soft)] text-[var(--fyxvo-text-muted)]"
+                              }`}
+                            >
+                              {ev.status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-[var(--fyxvo-text-muted)]">{ev.responseCode ?? "—"}</td>
+                          <td className="px-3 py-2 text-[var(--fyxvo-text-muted)] whitespace-nowrap">
+                            {new Date(ev.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-3 py-2">
+                            {ev.status === "failed" ? (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="text-xs"
+                                disabled={redelivering === ev.id}
+                                onClick={() => void handleRedeliver(ev.id)}
+                              >
+                                {redelivering === ev.id ? "…" : "Retry"}
+                              </Button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </SectionCard>
         ) : null}
 
         {/* Team members */}
         {isAuthenticated && portal.selectedProject && portal.selectedProject.ownerId === portal.user?.id ? (
           <SectionCard title="Team" description="Invite team members to collaborate on this project.">
-            {membersLoaded && members.length > 0 ? (
+            {/* Accepted members */}
+            {membersLoaded && members.filter((m) => m.acceptedAt !== null).length > 0 ? (
               <div className="space-y-2">
-                {members.map((m) => (
+                {members.filter((m) => m.acceptedAt !== null).map((m) => (
                   <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] p-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-[var(--fyxvo-text)]">{m.user.displayName}</p>
                       <p className="font-mono text-xs text-[var(--fyxvo-text-muted)]">{shortenAddress(m.user.walletAddress, 6, 6)}</p>
-                      <p className="text-xs text-[var(--fyxvo-text-muted)]">
-                        {m.acceptedAt ? "Accepted" : "Pending"} · {m.role}
-                      </p>
+                      <p className="text-xs text-[var(--fyxvo-text-muted)]">Accepted · {m.role}</p>
                     </div>
                     <Button size="sm" variant="danger" className="shrink-0 text-xs" disabled={removingMemberId === m.id} onClick={() => void handleRemoveMember(m.id)}>
                       {removingMemberId === m.id ? "…" : "Remove"}
@@ -935,10 +1178,39 @@ export default function SettingsPage() {
                 ))}
               </div>
             ) : membersLoaded ? (
-              <p className="text-sm text-[var(--fyxvo-text-muted)]">No team members yet.</p>
+              <p className="text-sm text-[var(--fyxvo-text-muted)]">No accepted team members yet.</p>
             ) : (
               <p className="text-sm text-[var(--fyxvo-text-muted)]">Loading…</p>
             )}
+
+            {/* Pending invitations */}
+            {membersLoaded && pendingInvitations.length > 0 ? (
+              <div className="border-t border-[var(--fyxvo-border)] pt-4 space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Pending Invitations</p>
+                {pendingInvitations.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-xs text-[var(--fyxvo-text)]">
+                        {m.user.walletAddress.slice(0, 8)}…{m.user.walletAddress.slice(-4)}
+                      </p>
+                      <p className="text-xs text-[var(--fyxvo-text-muted)]">
+                        Invited on {new Date(m.invitedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 text-xs text-rose-500 hover:text-rose-400"
+                      disabled={cancellingInviteId === m.id}
+                      onClick={() => void handleCancelInvite(m.id)}
+                    >
+                      {cancellingInviteId === m.id ? "…" : "Cancel"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <div className="border-t border-[var(--fyxvo-border)] pt-4 space-y-3">
               <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Invite by wallet address</p>
               <div className="flex items-center gap-2">
@@ -948,6 +1220,74 @@ export default function SettingsPage() {
                 </Button>
               </div>
             </div>
+
+            {/* Transfer ownership */}
+            {portal.user?.id === portal.selectedProject.ownerId ? (
+              <div className="border-t border-[var(--fyxvo-border)] pt-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setTransferOpen((prev) => !prev)}
+                  className="flex w-full items-center justify-between text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)]"
+                >
+                  Transfer Ownership
+                  <span aria-hidden="true">{transferOpen ? "▲" : "▼"}</span>
+                </button>
+                {transferOpen ? (
+                  <div className="space-y-3">
+                    {transferSuccess ? (
+                      <p className="text-sm text-emerald-600 dark:text-emerald-400">Ownership transferred successfully.</p>
+                    ) : acceptedMembers.length === 0 ? (
+                      <p className="text-sm text-[var(--fyxvo-text-muted)]">No accepted team members to transfer to.</p>
+                    ) : (
+                      <>
+                        <div className="flex flex-col gap-1">
+                          <label htmlFor="transfer-target" className="text-xs text-[var(--fyxvo-text-muted)]">
+                            New owner
+                          </label>
+                          <select
+                            id="transfer-target"
+                            value={transferTargetId}
+                            onChange={(e) => setTransferTargetId(e.target.value)}
+                            className="rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-3 py-2 text-sm text-[var(--fyxvo-text)] focus:outline-none focus:ring-1 focus:ring-[var(--fyxvo-accent)]"
+                          >
+                            <option value="">Select a member…</option>
+                            {acceptedMembers.map((m) => (
+                              <option key={m.id} value={m.userId}>
+                                {m.user.displayName} ({m.user.walletAddress.slice(0, 8)}…{m.user.walletAddress.slice(-4)})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label htmlFor="transfer-confirm" className="text-xs text-[var(--fyxvo-text-muted)]">
+                            Type <span className="font-mono font-semibold text-[var(--fyxvo-text)]">{portal.selectedProject?.name}</span> to confirm
+                          </label>
+                          <Input
+                            id="transfer-confirm"
+                            value={transferConfirmText}
+                            onChange={(e) => setTransferConfirmText(e.target.value)}
+                            placeholder={portal.selectedProject?.name ?? "Project name"}
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          disabled={
+                            !transferTargetId ||
+                            transferConfirmText !== portal.selectedProject?.name ||
+                            transferring
+                          }
+                          onClick={() => void handleTransferOwnership()}
+                        >
+                          {transferring ? "Transferring…" : "Transfer Ownership"}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </SectionCard>
         ) : null}
 

@@ -765,6 +765,19 @@ export interface ApiRepository {
   findRequestByTraceId(projectId: string, traceId: string): Promise<Record<string, unknown> | null>;
   countRecentRequests(since: Date): Promise<number>;
   getSuccessRateTrend(projectId: string, range: "24h" | "7d" | "30d"): Promise<Array<{ time: string; successRate: number }>>;
+  transferProjectOwnership(projectId: string, newOwnerId: string, previousOwnerId: string): Promise<void>;
+  listWebhookEvents(projectId: string): Promise<Array<{
+    id: string;
+    webhookId: string;
+    webhookUrl: string;
+    webhookName: string;
+    eventType: string;
+    status: string;
+    responseStatus: number | null;
+    attemptNumber: number;
+    createdAt: string;
+  }>>;
+  redeliverWebhookEvent(deliveryId: string, projectId: string): Promise<void>;
 }
 
 export interface AdminPlatformStats {

@@ -1,0 +1,2 @@
+ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "archiveReason" TEXT;
+ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "firstRequestCelebrationShown" BOOLEAN NOT NULL DEFAULT false;
