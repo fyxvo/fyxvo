@@ -35,3 +35,6 @@ programs/**/target
 *.sqlite-shm
 *.sqlite-wal
 .vercel
+
+# Claude Code internal state
+.claude/
