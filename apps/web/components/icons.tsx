@@ -241,3 +241,13 @@ export function BeakerIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function SupportIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </Icon>
+  );
+}

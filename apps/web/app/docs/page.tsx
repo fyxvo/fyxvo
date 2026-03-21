@@ -25,6 +25,7 @@ const NAV_SECTIONS = [
   { id: "public-profiles", label: "Public Project Pages", keywords: "public profile page slug badge readme status latency" },
   { id: "sdk-reference", label: "SDK Reference", keywords: "sdk library reference types api endpoint paths" },
   { id: "rate-limits", label: "Rate Limits", keywords: "rate limit 429 throttle bandwidth quota scope" },
+  { id: "api-versioning", label: "API Versioning", keywords: "api versioning v1 breaking changes deprecation header x-fyxvo-api-version" },
   { id: "troubleshooting", label: "Troubleshooting", keywords: "error debug fix 401 403 402 500 403 common issues" },
   { id: "error-reference", label: "Error Reference", keywords: "error reference codes 401 403 402 429 503 gateway api errors" },
   { id: "ci-cd", label: "CI/CD Integration", keywords: "ci cd github actions continuous integration deploy environment variables secrets" },
@@ -223,12 +224,16 @@ const blockhash = await client.rpc({
 console.log(blockhash.result.value.blockhash);`;
 
   const sdkPriorityCode = `// Priority relay request (requires priority:relay scoped key)
-const slot = await client.priority({
-  id: 1,
-  method: "getSlot",
-});
+// Pass the /priority path via the options second argument
+const slot = await client.rpc(
+  { id: 1, method: "getSlot" },
+  { path: "/priority" }
+);
 
-console.log(slot.result);`;
+if ("result" in slot) {
+  const slotNumber = slot.result as number;
+  // use slotNumber
+}`;
 
   const sdkErrorCode = `import { FyxvoError, FyxvoApiError } from "@fyxvo/sdk";
 
@@ -237,10 +242,14 @@ try {
 } catch (err) {
   if (err instanceof FyxvoApiError) {
     // HTTP-level error from the gateway (4xx / 5xx)
-    console.error(err.statusCode, err.message);
+    // err.status holds the HTTP status code, err.message has the description
+    const status: number | undefined = err.status;
+    const message: string = err.message;
+    void status; void message;
   } else if (err instanceof FyxvoError) {
     // SDK-level error (network, timeout, config)
-    console.error(err.message);
+    const message: string = err.message;
+    void message;
   }
 }`;
 
@@ -266,6 +275,91 @@ async function withRetry(fn, maxAttempts = 3) {
       }
     }
   }
+}`;
+
+  const pythonRpcCode = `import requests
+
+response = requests.post(
+    "https://rpc.fyxvo.com/rpc",
+    headers={"x-api-key": "YOUR_KEY", "Content-Type": "application/json"},
+    json={"jsonrpc": "2.0", "id": 1, "method": "getHealth", "params": []}
+)
+print(response.json())`;
+
+  const tsAuthCode = `import { createFyxvoClient } from "@fyxvo/sdk";
+
+// Step 1 — request a challenge
+const api = createFyxvoClient({ baseUrl: "${webEnv.apiBaseUrl}" });
+const challenge = await api.request<{ message: string; nonce: string }>({
+  method: "POST",
+  path: "/v1/auth/challenge",
+  body: { walletAddress: "YOUR_WALLET_ADDRESS" },
+});
+
+// Step 2 — sign the message with your wallet
+const encoded = new TextEncoder().encode(challenge.message);
+const sigBytes = await wallet.signMessage(encoded);
+const signature = bs58.encode(sigBytes);
+
+// Step 3 — verify and receive a JWT
+const session = await api.request<{ token: string }>({
+  method: "POST",
+  path: "/v1/auth/verify",
+  body: {
+    walletAddress: "YOUR_WALLET_ADDRESS",
+    message: challenge.message,
+    signature,
+  },
+});
+
+// Step 4 — use the JWT as a bearer token for subsequent calls
+const authedClient = createFyxvoClient({
+  baseUrl: "${webEnv.apiBaseUrl}",
+  headers: { authorization: \`Bearer \${session.token}\` },
+});`;
+
+  const tsApiKeyCode = `// Create a gateway relay API key (requires JWT from auth flow)
+const authedClient = createFyxvoClient({
+  baseUrl: "${webEnv.apiBaseUrl}",
+  headers: { authorization: "Bearer YOUR_JWT" },
+});
+
+const created = await authedClient.request<{
+  item: { id: string; prefix: string; scopes: string[] };
+  plainTextKey: string;
+}>({
+  method: "POST",
+  path: "/v1/api-keys",
+  body: { label: "my-relay-key", scopes: ["rpc:request"] },
+});
+
+const apiKey = created.plainTextKey;`;
+
+  const tsRpcCode = `import { createFyxvoClient, type RpcResponse } from "@fyxvo/sdk";
+
+// Gateway client — use your relay API key here
+const gateway = createFyxvoClient({
+  baseUrl: "${webEnv.gatewayBaseUrl}",
+  apiKey: process.env.FYXVO_API_KEY,
+});
+
+// Standard RPC call
+const health = await gateway.rpc<string>({ method: "getHealth" });
+
+// With typed params
+interface BlockhashResult {
+  blockhash: string;
+  lastValidBlockHeight: number;
+}
+const response: RpcResponse<{ value: BlockhashResult }> = await gateway.rpc({
+  id: 1,
+  method: "getLatestBlockhash",
+  params: [{ commitment: "confirmed" }],
+});
+
+if ("result" in response) {
+  const blockhash: string = response.result.value.blockhash;
+  void blockhash;
 }`;
 
   const healthCheckCode = `# API health
@@ -810,8 +904,9 @@ curl -s -X POST ${webEnv.gatewayBaseUrl}/priority \\
               <CodeBlock
                 label="Signature verification (Node.js)"
                 code={`const crypto = require('crypto');
-const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-if (req.headers['x-fyxvo-signature'] !== expected) return res.status(401).end();`}
+const sig = req.headers['x-fyxvo-signature'];
+const computed = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+if (sig !== computed) return res.status(401).send('Unauthorized');`}
               />
               <Notice tone="neutral" title="Retry behavior">
                 If your endpoint is unreachable, Fyxvo retries once after 30 seconds. After two failures the webhook remains active but{" "}
@@ -917,8 +1012,12 @@ if (req.headers['x-fyxvo-signature'] !== expected) return res.status(401).end();
               <CodeBlock code={sdkInstallCode} label="Install (coming soon)" />
               <CodeBlock code={sdkClientCode} label="Create a client" />
               <CodeBlock code={sdkRpcCode} label="client.rpc() — standard relay" />
-              <CodeBlock code={sdkPriorityCode} label="client.priority() — priority relay" />
+              <CodeBlock code={sdkPriorityCode} label="client.rpc() with /priority path — priority relay" />
               <CodeBlock code={sdkErrorCode} label="Error handling" />
+              <CodeBlock code={tsAuthCode} label="TypeScript — full wallet auth flow" />
+              <CodeBlock code={tsApiKeyCode} label="TypeScript — create an API key" />
+              <CodeBlock code={tsRpcCode} label="TypeScript — typed gateway RPC call" />
+              <CodeBlock code={pythonRpcCode} label="Python (requests) — gateway RPC call" />
               <div className="grid gap-4 sm:grid-cols-2">
                 <Notice tone="neutral" title="FyxvoError">
                   Base class for all SDK errors. Covers network failures, timeouts, and
@@ -988,6 +1087,104 @@ if (req.headers['x-fyxvo-signature'] !== expected) return res.status(401).end();
                 <code className="text-brand-600 dark:text-brand-300">x-ratelimit-reset</code> headers. Use these to
                 implement adaptive backoff without waiting for a 429.
               </Notice>
+            </div>
+          </section>
+
+          {/* ── API Versioning ───────────────────────────────────── */}
+          <section id="api-versioning">
+            <SectionHeading
+              id="api-versioning"
+              eyebrow="Reference"
+              title="API Versioning"
+              description="How Fyxvo versions its REST API and what counts as a breaking change."
+            />
+            <div className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-5">
+                  <div className="text-xs uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300 mb-3">
+                    Current version
+                  </div>
+                  <div className="space-y-2 text-sm text-[var(--fyxvo-text-soft)]">
+                    <p>
+                      <span className="font-medium text-[var(--fyxvo-text)]">Version:</span>{" "}
+                      <code className="font-mono text-xs">v1</code>
+                    </p>
+                    <p>
+                      <span className="font-medium text-[var(--fyxvo-text)]">Base path:</span>{" "}
+                      <code className="font-mono text-xs">/v1/</code>
+                    </p>
+                    <p>
+                      <span className="font-medium text-[var(--fyxvo-text)]">Version header:</span>{" "}
+                      <code className="font-mono text-xs">X-Fyxvo-API-Version: v1</code>
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-5">
+                  <div className="text-xs uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300 mb-3">
+                    Version detection
+                  </div>
+                  <p className="text-sm text-[var(--fyxvo-text-soft)]">
+                    Every API response includes the{" "}
+                    <code className="font-mono text-xs">X-Fyxvo-API-Version: v1</code> header.
+                    Check this header in your client to detect version mismatches before they cause
+                    silent behavior changes.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-5">
+                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)] mb-3">
+                    Breaking changes
+                  </div>
+                  <ul className="space-y-1.5 text-sm text-[var(--fyxvo-text-soft)]">
+                    <li>Changes to existing response field shapes or types</li>
+                    <li>Removal of response fields</li>
+                    <li>Changes to the authentication mechanism</li>
+                    <li>Changes to required request fields</li>
+                    <li>Removal of existing endpoints</li>
+                  </ul>
+                </div>
+                <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-5">
+                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)] mb-3">
+                    Non-breaking changes
+                  </div>
+                  <ul className="space-y-1.5 text-sm text-[var(--fyxvo-text-soft)]">
+                    <li>Adding new optional response fields</li>
+                    <li>Adding new endpoints</li>
+                    <li>Adding new optional query parameters</li>
+                    <li>Adding new optional request body fields</li>
+                    <li>Expanding enum values in new fields</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="rounded-[1.5rem] border border-[color:var(--fyxvo-border)] bg-[color:var(--fyxvo-panel-soft)] p-5">
+                <div className="text-xs uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)] mb-3">
+                  Deprecations
+                </div>
+                <p className="text-sm text-[var(--fyxvo-text-soft)]">
+                  Deprecations are announced via a{" "}
+                  <code className="font-mono text-xs">Deprecation</code> header in affected
+                  API responses and in the{" "}
+                  <a href="/changelog" className="text-[var(--fyxvo-brand)] underline">changelog</a>.
+                  Deprecated endpoints remain available for a minimum of 90 days after the
+                  announcement. Watch the{" "}
+                  <code className="font-mono text-xs">Deprecation</code> header in your HTTP
+                  client to catch these early.
+                </p>
+              </div>
+              <CodeBlock
+                label="Detecting the API version in your client"
+                code={`// After any fetch call, check the version header:
+const response = await fetch("${webEnv.apiBaseUrl}/v1/...", { /* ... */ });
+const apiVersion = response.headers.get("X-Fyxvo-API-Version");
+if (apiVersion && apiVersion !== "v1") {
+  // Version mismatch — review the changelog for migration steps
+}
+
+// curl: observe the header in verbose output
+curl -I ${webEnv.apiBaseUrl}/health
+# X-Fyxvo-API-Version: v1`}
+              />
             </div>
           </section>
 

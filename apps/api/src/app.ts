@@ -510,6 +510,12 @@ export async function buildApiApp(input: {
     global: true,
     max: input.env.API_RATE_LIMIT_MAX,
     timeWindow: input.env.API_RATE_LIMIT_WINDOW_MS,
+    addHeaders: {
+      "x-ratelimit-limit": true,
+      "x-ratelimit-remaining": true,
+      "x-ratelimit-reset": true,
+      "retry-after": true
+    },
     errorResponseBuilder: (request, context) => ({
       code: "rate_limited",
       error: "Too Many Requests",
@@ -2494,6 +2500,132 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
 
   // Clean up on app close
   app.addHook("onClose", () => { clearInterval(retryWorker); });
+
+  // ── API version header on all responses ──────────────────────────────────
+  app.addHook("onRequest", async (_req, reply) => {
+    reply.header("X-Fyxvo-API-Version", "v1");
+  });
+
+  // ── Operators activity feed ───────────────────────────────────────────────
+  app.get("/v1/operators/activity", async (request) => {
+    const user = requireUser(request);
+    if (user.role !== "ADMIN" && user.role !== "OWNER") throw new HttpError(403, "forbidden", "Admin access required.");
+    const items = await input.repository.getOperatorActivity(20);
+    return { items };
+  });
+
+  app.get("/v1/operators/daily-requests", async (request) => {
+    const user = requireUser(request);
+    if (user.role !== "ADMIN" && user.role !== "OWNER") throw new HttpError(403, "forbidden", "Admin access required.");
+    const data = await input.repository.getOperatorDailyRequests(7);
+    return { data };
+  });
+
+  // ── Analytics node distribution ───────────────────────────────────────────
+  app.get("/v1/projects/:projectId/analytics/nodes", async (request) => {
+    const user = requireUser(request);
+    const { projectId } = request.params as { projectId: string };
+    const project = await input.repository.findProjectById(projectId);
+    if (!project) throw new HttpError(404, "not_found", "Project not found.");
+    if (!canAccessProject(user, project)) throw new HttpError(403, "forbidden", "Access denied.");
+    const nodes = await input.repository.getNodeDistribution(projectId, 30);
+    return { nodes, dataAvailable: nodes.length > 0 };
+  });
+
+  // ── Client error reporting ────────────────────────────────────────────────
+  app.post("/v1/analytics/errors", async (request, reply) => {
+    const body = z.object({
+      component: z.string().max(100),
+      message: z.string().max(500),
+      page: z.string().max(200),
+    }).safeParse(request.body);
+    if (!body.success) return reply.status(400).send({ error: "Invalid data" });
+    await input.repository.recordClientError(body.data);
+    return reply.status(201).send({ ok: true });
+  });
+
+  // ── Support tickets ───────────────────────────────────────────────────────
+  app.post("/v1/support/tickets", async (request, reply) => {
+    const user = requireUser(request);
+    const body = z.object({
+      projectId: z.string().optional(),
+      category: z.enum(["general", "billing", "technical", "security"]).default("general"),
+      priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+      subject: z.string().min(5).max(200),
+      description: z.string().min(10).max(5000),
+    }).parse(request.body);
+    const ticketInput: { userId: string; projectId?: string; category: string; priority: string; subject: string; description: string } = {
+      userId: user.id,
+      category: body.category,
+      priority: body.priority,
+      subject: body.subject,
+      description: body.description,
+    };
+    if (body.projectId !== undefined) ticketInput.projectId = body.projectId;
+    const ticket = await input.repository.createSupportTicket(ticketInput);
+    return reply.status(201).send(ticket);
+  });
+
+  app.get("/v1/support/tickets", async (request) => {
+    const user = requireUser(request);
+    const tickets = await input.repository.listSupportTickets(user.id);
+    return { tickets };
+  });
+
+  app.get("/v1/support/tickets/:id", async (request) => {
+    const user = requireUser(request);
+    const { id } = request.params as { id: string };
+    const ticket = await input.repository.getSupportTicket(id, user.id);
+    if (!ticket) throw new HttpError(404, "not_found", "Ticket not found.");
+    return ticket;
+  });
+
+  app.get("/v1/admin/support/tickets", async (request) => {
+    const user = requireUser(request);
+    if (user.role !== "ADMIN" && user.role !== "OWNER") throw new HttpError(403, "forbidden", "Admin access required.");
+    const { status } = request.query as { status?: string };
+    const tickets = await input.repository.adminListSupportTickets(status);
+    return { tickets };
+  });
+
+  app.post("/v1/admin/support/tickets/:id/respond", async (request, reply) => {
+    const user = requireUser(request);
+    if (user.role !== "ADMIN" && user.role !== "OWNER") throw new HttpError(403, "forbidden", "Admin access required.");
+    const { id } = request.params as { id: string };
+    const { response, status } = z.object({
+      response: z.string().min(1).max(5000),
+      status: z.enum(["open", "in_progress", "resolved", "closed"]).default("resolved"),
+    }).parse(request.body);
+    const ticket = await input.repository.adminRespondToTicket(id, response, status);
+    return reply.status(200).send(ticket);
+  });
+
+  // ── Blog / updates ────────────────────────────────────────────────────────
+  app.get("/v1/updates", async () => {
+    const posts = await input.repository.listBlogPosts(true);
+    return { posts };
+  });
+
+  app.get("/v1/updates/:slug", async (request) => {
+    const { slug } = request.params as { slug: string };
+    const post = await input.repository.getBlogPost(slug);
+    if (!post) throw new HttpError(404, "not_found", "Post not found.");
+    return post;
+  });
+
+  app.post("/v1/admin/updates", async (request, reply) => {
+    const user = requireUser(request);
+    if (user.role !== "ADMIN" && user.role !== "OWNER") throw new HttpError(403, "forbidden", "Admin access required.");
+    const body = z.object({
+      slug: z.string().min(1).max(100),
+      title: z.string().min(1).max(200),
+      summary: z.string().min(1).max(500),
+      content: z.string().min(1).max(50000),
+      visible: z.boolean().default(false),
+    }).parse(request.body);
+    const post = await input.repository.createBlogPost(body);
+    return reply.status(201).send(post);
+  });
 
   return app;
 }

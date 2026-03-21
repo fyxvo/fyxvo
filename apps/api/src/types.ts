@@ -550,6 +550,47 @@ export interface ProjectHealthScore {
   successRate: number | null;
 }
 
+export interface SupportTicketRecord {
+  id: string;
+  userId: string;
+  projectId: string | null;
+  category: string;
+  priority: string;
+  subject: string;
+  description: string;
+  status: string;
+  adminResponse: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+}
+
+export interface BlogPostRecord {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  content: string;
+  publishedAt: string | null;
+  visible: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OperatorActivityItem {
+  method: string;
+  durationMs: number;
+  route: string;
+  success: boolean;
+  upstreamNode: string | null;
+  createdAt: string;
+}
+
+export interface DailyRequestCount {
+  date: string;
+  count: number;
+}
+
 export interface ProjectMemberItem {
   readonly id: string;
   readonly projectId: string;
@@ -668,6 +709,24 @@ export interface ApiRepository {
   subscribeToStatus(email: string): Promise<void>;
 
   getProjectHealthScore(projectId: string): Promise<ProjectHealthScore>;
+
+  // Operators
+  getOperatorActivity(limit?: number): Promise<OperatorActivityItem[]>;
+  getOperatorDailyRequests(days?: number): Promise<DailyRequestCount[]>;
+  // Analytics nodes
+  getNodeDistribution(projectId: string, days?: number): Promise<Array<{ node: string; count: number; avgLatencyMs: number }>>;
+  // Analytics errors
+  recordClientError(input: { component: string; message: string; page: string }): Promise<void>;
+  // Support tickets
+  createSupportTicket(input: { userId: string; projectId?: string; category: string; priority: string; subject: string; description: string }): Promise<SupportTicketRecord>;
+  listSupportTickets(userId: string): Promise<SupportTicketRecord[]>;
+  getSupportTicket(id: string, userId: string): Promise<SupportTicketRecord | null>;
+  adminListSupportTickets(status?: string): Promise<SupportTicketRecord[]>;
+  adminRespondToTicket(id: string, response: string, status: string): Promise<SupportTicketRecord>;
+  // Blog
+  listBlogPosts(visibleOnly?: boolean): Promise<BlogPostRecord[]>;
+  getBlogPost(slug: string): Promise<BlogPostRecord | null>;
+  createBlogPost(input: { slug: string; title: string; summary: string; content: string; publishedAt?: Date; visible?: boolean }): Promise<BlogPostRecord>;
 }
 
 export interface ProjectCreationPreparation {

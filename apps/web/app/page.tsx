@@ -9,6 +9,7 @@ import { formatDuration } from "../lib/format";
 import { liveDevnetState } from "../lib/live-state";
 import { AnimatedStat } from "../components/animated-stat";
 import { AnimatedTerminal } from "../components/animated-terminal";
+import { InteractiveDemo } from "../components/interactive-demo";
 
 export default async function HomePage() {
   const [status, networkStats] = await Promise.all([
@@ -302,6 +303,21 @@ export default async function HomePage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Interactive demo */}
+      <section id="demo" className="border-t border-[var(--fyxvo-border)] py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-10">
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-[var(--fyxvo-text)] sm:text-4xl">
+              See how it works
+            </h2>
+            <p className="mt-3 max-w-2xl text-base text-[var(--fyxvo-text-muted)]">
+              Walk through the five steps from project creation to live analytics.
+            </p>
+          </div>
+          <InteractiveDemo />
         </div>
       </section>
 

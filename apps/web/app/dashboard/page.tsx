@@ -640,6 +640,15 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
+      {portal.walletPhase === "authenticated" && portal.projects.length > 1 ? (
+        <div className="flex items-center gap-3 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3">
+          <span className="text-sm text-[var(--fyxvo-text-soft)]">You have {portal.projects.length} projects.</span>
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/compare">Compare projects</Link>
+          </Button>
+        </div>
+      ) : null}
+
       {portal.walletPhase !== "authenticated" ? <AuthGate /> : null}
       {portal.loading ? <LoadingGrid /> : null}
 

@@ -18,6 +18,7 @@ import {
   PulseIcon,
   MenuIcon,
   SettingsIcon,
+  SupportIcon,
   TransactionsIcon,
   SparklesIcon,
   BeakerIcon,
@@ -41,6 +42,7 @@ const navItems = [
   { href: "/docs", label: "Docs", icon: BookIcon },
   { href: "/status", label: "Status", icon: PulseIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
+  { href: "/support", label: "Support", icon: SupportIcon },
   { href: "/assistant", label: "Assistant", icon: SparklesIcon },
 ] as const;
 

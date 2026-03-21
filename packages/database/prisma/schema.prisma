@@ -98,6 +98,7 @@ model User {
   referralClicks     ReferralClick[]
   projectMemberships ProjectMember[]
   activityLogs       ActivityLog[]
+  supportTickets     SupportTicket[]
 
   @@index([referralCode])
 }
@@ -178,6 +179,7 @@ model Project {
   webhooks                   Webhook[]
   members                    ProjectMember[]
   activityLogs               ActivityLog[]
+  supportTickets             SupportTicket[]
 
   @@index([ownerId])
   @@index([publicSlug])
@@ -219,6 +221,10 @@ model RequestLog {
   durationMs     Int
   ipAddress      String?
   userAgent      String?
+  region        String?
+  requestSize   Int?
+  responseSize  Int?
+  upstreamNode  String?
   createdAt      DateTime  @default(now())
   project        Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   apiKey         ApiKey?   @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
@@ -589,4 +595,39 @@ model PerformanceMetric {
   createdAt DateTime @default(now())
 
   @@index([page, createdAt])
+}
+
+model SupportTicket {
+  id          String   @id @default(cuid())
+  userId      String
+  projectId   String?
+  category    String   @default("general")
+  priority    String   @default("normal")
+  subject     String
+  description String
+  status      String   @default("open")
+  adminResponse String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  resolvedAt  DateTime?
+
+  user    User    @relation(fields: [userId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  summary     String
+  content     String
+  publishedAt DateTime?
+  visible     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([visible, publishedAt])
 }

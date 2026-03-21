@@ -243,6 +243,26 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
         );
       }
 
+      const KEY_RATE_LIMIT_MAX = 300;
+      const keyRateLimitDecision = await input.stateStore.acquireRateLimit({
+        subject: `key:${apiKeyId}`,
+        mode,
+        limit: KEY_RATE_LIMIT_MAX,
+        windowMs: input.env.GATEWAY_RATE_LIMIT_WINDOW_MS
+      });
+      setRateLimitHeaders(reply, keyRateLimitDecision);
+
+      if (!keyRateLimitDecision.allowed) {
+        throw new GatewayHttpError(429, "key_rate_limited", "API key rate limit exceeded. Wait for the current window to reset before retrying.", {
+          error: "rate_limited",
+          code: "key_rate_limited",
+          limit: keyRateLimitDecision.limit,
+          remaining: keyRateLimitDecision.remaining,
+          resetAt: keyRateLimitDecision.resetAt,
+          retryAfterMs: Math.max(keyRateLimitDecision.resetAt - Date.now(), 0)
+        });
+      }
+
       const rateLimitDecision = await input.stateStore.acquireRateLimit({
         subject: apiKeyId,
         mode,

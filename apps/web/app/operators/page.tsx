@@ -183,23 +183,43 @@ const nodeColumns: readonly TableColumn<OperatorSummary["nodes"][number]>[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Static activity + chart data
+// Types for real API data
 // ---------------------------------------------------------------------------
 
-const SAMPLE_ACTIVITY = [
-  { method: "getSlot", latencyMs: 42, mode: "standard" },
-  { method: "getBalance", latencyMs: 67, mode: "standard" },
-  { method: "getLatestBlockhash", latencyMs: 38, mode: "standard" },
-  { method: "sendTransaction", latencyMs: 95, mode: "priority" },
-  { method: "getTransaction", latencyMs: 71, mode: "standard" },
-  { method: "getAccountInfo", latencyMs: 55, mode: "standard" },
-  { method: "getSlot", latencyMs: 39, mode: "standard" },
-  { method: "getBalance", latencyMs: 62, mode: "standard" },
-  { method: "simulateTransaction", latencyMs: 88, mode: "standard" },
-  { method: "getBlockTime", latencyMs: 44, mode: "standard" },
-] as const;
+interface OperatorActivityItem {
+  readonly method: string;
+  readonly latencyMs: number;
+  readonly mode: string;
+  readonly success: boolean;
+  readonly upstreamNode: string | null;
+  readonly createdAt: string;
+}
 
-const DAILY_REQUESTS_DATA = [
+interface DailyRequestCount {
+  readonly date: string;
+  readonly count: number;
+}
+
+// ---------------------------------------------------------------------------
+// Static fallback activity + chart data
+// ---------------------------------------------------------------------------
+
+const SAMPLE_ACTIVITY: OperatorActivityItem[] = [
+  { method: "getSlot", latencyMs: 42, mode: "standard", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+  { method: "getBalance", latencyMs: 67, mode: "standard", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+  { method: "getLatestBlockhash", latencyMs: 38, mode: "standard", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+  { method: "sendTransaction", latencyMs: 95, mode: "priority", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+  { method: "getTransaction", latencyMs: 71, mode: "standard", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+  { method: "getAccountInfo", latencyMs: 55, mode: "standard", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+  { method: "getSlot", latencyMs: 39, mode: "standard", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+  { method: "getBalance", latencyMs: 62, mode: "standard", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+  { method: "simulateTransaction", latencyMs: 88, mode: "standard", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+  { method: "getBlockTime", latencyMs: 44, mode: "standard", success: true, upstreamNode: null, createdAt: new Date().toISOString() },
+];
+
+const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const FALLBACK_DAILY_DATA = [
   { day: "Mon", requests: 2847 },
   { day: "Tue", requests: 3102 },
   { day: "Wed", requests: 2756 },
@@ -207,7 +227,7 @@ const DAILY_REQUESTS_DATA = [
   { day: "Fri", requests: 3890 },
   { day: "Sat", requests: 2134 },
   { day: "Sun", requests: 1987 },
-] as const;
+];
 
 function subscribeNoop() {
   return () => undefined;
@@ -225,6 +245,9 @@ export default function OperatorsPage() {
   const portal = usePortal();
   const canViewAdmin = portal.user?.role === "OWNER" || portal.user?.role === "ADMIN";
   const [gatewayStatus, setGatewayStatus] = useState<PortalServiceStatus | null>(null);
+  const [activityData, setActivityData] = useState<OperatorActivityItem[]>(SAMPLE_ACTIVITY);
+  const [dailyData, setDailyData] = useState<{ day: string; requests: number }[]>(FALLBACK_DAILY_DATA);
+  const [loadingActivity, setLoadingActivity] = useState(false);
   const isClient = useIsClient();
 
   useEffect(() => {
@@ -236,6 +259,49 @@ export default function OperatorsPage() {
         setGatewayStatus(null);
       });
   }, []);
+
+  useEffect(() => {
+    if (!portal.token) return;
+    let cancelled = false;
+    const loadTimer = setTimeout(() => { if (!cancelled) setLoadingActivity(true); }, 0);
+
+    const headers = { authorization: `Bearer ${portal.token}` };
+
+    Promise.all([
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/v1/operators/activity`, { headers, cache: "no-store" })
+        .then((r) => r.ok ? r.json() : Promise.reject(new Error("activity fetch failed")))
+        .then((body: unknown) => {
+          if (typeof body === "object" && body !== null && "items" in body && Array.isArray((body as Record<string, unknown>).items)) {
+            return (body as { items: OperatorActivityItem[] }).items;
+          }
+          return SAMPLE_ACTIVITY;
+        })
+        .catch(() => SAMPLE_ACTIVITY),
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/v1/operators/daily-requests`, { headers, cache: "no-store" })
+        .then((r) => r.ok ? r.json() : Promise.reject(new Error("daily-requests fetch failed")))
+        .then((body: unknown) => {
+          if (typeof body === "object" && body !== null && "data" in body && Array.isArray((body as Record<string, unknown>).data)) {
+            return (body as { data: DailyRequestCount[] }).data.map((item) => ({
+              day: DAYS_OF_WEEK[new Date(item.date).getDay()] ?? item.date.slice(5),
+              requests: item.count,
+            }));
+          }
+          return FALLBACK_DAILY_DATA;
+        })
+        .catch(() => FALLBACK_DAILY_DATA),
+    ]).then(([activity, daily]) => {
+      if (!cancelled) {
+        setActivityData(activity);
+        setDailyData(daily);
+      }
+    }).catch(() => {
+      // fallback data already set
+    }).finally(() => {
+      if (!cancelled) setLoadingActivity(false);
+    });
+
+    return () => { cancelled = true; clearTimeout(loadTimer); };
+  }, [portal.token]);
 
   const operatorSummary = useMemo(() => {
     const nodes = portal.operators.flatMap((summary) => summary.nodes);
@@ -663,29 +729,40 @@ export default function OperatorsPage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Recent activity feed (sample data)                                  */}
+      {/* Recent activity feed                                                 */}
       {/* ------------------------------------------------------------------ */}
       <section className="mt-8">
         <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
-          Recent activity — sample data
+          Recent activity {portal.token ? "(live)" : "(sample data)"}
         </h3>
-        <div className="space-y-2">
-          {SAMPLE_ACTIVITY.map((item, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-2.5"
-            >
-              <div className="flex items-center gap-3">
-                <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                <span className="font-mono text-sm text-[var(--fyxvo-text)]">{item.method}</span>
+        {loadingActivity ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-10 animate-pulse rounded-lg bg-[var(--fyxvo-panel-soft)]" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {activityData.map((item, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-2.5"
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: item.success ? "var(--color-success, #22c55e)" : "var(--color-danger, #ef4444)" }}
+                  />
+                  <span className="font-mono text-sm text-[var(--fyxvo-text)]">{item.method}</span>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-[var(--fyxvo-text-muted)]">
+                  <span>{item.latencyMs}ms</span>
+                  <span className="rounded bg-[var(--fyxvo-border)] px-1.5 py-0.5">{item.mode}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-4 text-xs text-[var(--fyxvo-text-muted)]">
-                <span>{item.latencyMs}ms</span>
-                <span className="rounded bg-[var(--fyxvo-border)] px-1.5 py-0.5">{item.mode}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* ------------------------------------------------------------------ */}
@@ -699,7 +776,7 @@ export default function OperatorsPage() {
           {isClient ? (
             <ResponsiveContainer width="100%" height={180}>
               <BarChart
-                data={DAILY_REQUESTS_DATA}
+                data={dailyData}
                 margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
               >
                 <XAxis
@@ -726,15 +803,18 @@ export default function OperatorsPage() {
             </ResponsiveContainer>
           ) : (
             <div style={{ height: 180 }} className="flex items-end gap-1 px-2">
-              {DAILY_REQUESTS_DATA.map((d) => (
-                <div
-                  key={d.day}
-                  className="flex-1 rounded-t bg-brand-500/20"
-                  style={{
-                    height: `${Math.round((d.requests / 3890) * 100)}%`,
-                  }}
-                />
-              ))}
+              {dailyData.map((d) => {
+                const maxRequests = Math.max(...dailyData.map((x) => x.requests), 1);
+                return (
+                  <div
+                    key={d.day}
+                    className="flex-1 rounded-t bg-brand-500/20"
+                    style={{
+                      height: `${Math.round((d.requests / maxRequests) * 100)}%`,
+                    }}
+                  />
+                );
+              })}
             </div>
           )}
         </div>

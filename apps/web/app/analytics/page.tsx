@@ -22,6 +22,12 @@ import { getProjectAnalytics, downloadAnalyticsExport, getErrorLog, getMethodBre
 import { dashboardTrend } from "../../lib/sample-data";
 import { formatDuration, formatInteger, formatPercent, formatRelativeDate } from "../../lib/format";
 import type { AnalyticsRange, ErrorLogEntry, MethodBreakdown, ProjectAnalytics } from "../../lib/types";
+
+interface NodeDistributionEntry {
+  readonly nodeUrl: string;
+  readonly requestCount: number;
+  readonly avgLatencyMs: number;
+}
 import { PRICING_LAMPORTS, COMPUTE_HEAVY_METHODS, WRITE_METHODS } from "@fyxvo/config";
 import { webEnv } from "../../lib/env";
 import { CopyButton } from "../../components/copy-button";
@@ -66,6 +72,8 @@ export default function AnalyticsPage() {
   const [exporting, setExporting] = useState(false);
   const [localAnalytics, setLocalAnalytics] = useState<ProjectAnalytics | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [nodeDistribution, setNodeDistribution] = useState<NodeDistributionEntry[]>([]);
+  const [loadingNodes, setLoadingNodes] = useState(false);
 
   const selectedProject = portal.selectedProject;
 
@@ -114,6 +122,32 @@ export default function AnalyticsPage() {
       });
     return () => { cancelled = true; };
   }, [selectedProject, portal.token, range]);
+
+  useEffect(() => {
+    if (!selectedProject || !portal.token) {
+      setNodeDistribution([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingNodes(true);
+    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"}/v1/projects/${selectedProject.id}/analytics/nodes`;
+    fetch(url, { headers: { authorization: `Bearer ${portal.token}` }, cache: "no-store" })
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error("nodes fetch failed")))
+      .then((body: unknown) => {
+        if (typeof body === "object" && body !== null && "nodes" in body && Array.isArray((body as Record<string, unknown>).nodes)) {
+          if (!cancelled) setNodeDistribution((body as { nodes: NodeDistributionEntry[] }).nodes);
+        } else {
+          if (!cancelled) setNodeDistribution([]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setNodeDistribution([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingNodes(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedProject, portal.token]);
 
   const displayAnalytics = localAnalytics ?? portal.projectAnalytics;
 
@@ -418,6 +452,56 @@ export default function AnalyticsPage() {
                   </>
                 );
               })()}
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* Upstream node distribution */}
+      {isAuthenticated && selectedProject && (
+        <section>
+          <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+            <CardHeader>
+              <CardTitle>Upstream Node Distribution</CardTitle>
+              <CardDescription>
+                Request volume and average latency broken down by upstream relay node.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingNodes ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-10 animate-pulse rounded-lg bg-[var(--fyxvo-panel-soft)]" />
+                  ))}
+                </div>
+              ) : nodeDistribution.length === 0 ? (
+                <Notice tone="neutral" title="Node tracking was recently enabled">
+                  More data will appear over the next few days as requests route through upstream nodes.
+                </Notice>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-[var(--fyxvo-border)]">
+                      <tr>
+                        <th className="pb-3 text-left text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Node URL</th>
+                        <th className="pb-3 text-right text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Requests</th>
+                        <th className="pb-3 text-right text-xs font-medium uppercase tracking-[0.14em] text-[var(--fyxvo-text-muted)]">Avg latency</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--fyxvo-border)]">
+                      {nodeDistribution.map((node) => (
+                        <tr key={node.nodeUrl} className="text-[var(--fyxvo-text-soft)]">
+                          <td className="py-3 font-mono text-xs text-[var(--fyxvo-text)]" title={node.nodeUrl}>
+                            {node.nodeUrl.length > 40 ? `${node.nodeUrl.slice(0, 38)}…` : node.nodeUrl}
+                          </td>
+                          <td className="py-3 text-right text-xs">{node.requestCount.toLocaleString()}</td>
+                          <td className="py-3 text-right text-xs">{formatDuration(node.avgLatencyMs)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </section>

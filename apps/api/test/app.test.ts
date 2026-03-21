@@ -59,7 +59,11 @@ import type {
   RequestLogInput,
   SaveIdempotencyInput,
   UpdateProjectInput,
-  WebhookDeliveryRecord
+  WebhookDeliveryRecord,
+  SupportTicketRecord,
+  BlogPostRecord,
+  OperatorActivityItem,
+  DailyRequestCount
 } from "../src/types.js";
 
 function makeEnv(overrides: Partial<Record<string, string>> = {}) {
@@ -963,6 +967,18 @@ class MemoryApiRepository implements ApiRepository {
   async getPerformanceMetricSummary(_days?: number): Promise<{ page: string; avgFcp: number | null; avgLcp: number | null; sampleCount: number }[]> { return []; }
   async subscribeToStatus(_email: string): Promise<void> {}
   async getProjectHealthScore(_projectId: string): Promise<ProjectHealthScore> { return { score: 80, activated: true, hasFunding: true, hasApiKeys: true, hasTraffic: true, successRate: 1.0 }; }
+  async getOperatorActivity(_limit?: number): Promise<OperatorActivityItem[]> { return []; }
+  async getOperatorDailyRequests(_days?: number): Promise<DailyRequestCount[]> { return []; }
+  async getNodeDistribution(_projectId: string, _days?: number): Promise<Array<{ node: string; count: number; avgLatencyMs: number }>> { return []; }
+  async recordClientError(_input: { component: string; message: string; page: string }): Promise<void> { return; }
+  async createSupportTicket(_input: { userId: string; projectId?: string; category: string; priority: string; subject: string; description: string }): Promise<SupportTicketRecord> { throw new Error("not implemented"); }
+  async listSupportTickets(_userId: string): Promise<SupportTicketRecord[]> { return []; }
+  async getSupportTicket(_id: string, _userId: string): Promise<SupportTicketRecord | null> { return null; }
+  async adminListSupportTickets(_status?: string): Promise<SupportTicketRecord[]> { return []; }
+  async adminRespondToTicket(_id: string, _response: string, _status: string): Promise<SupportTicketRecord> { throw new Error("not implemented"); }
+  async listBlogPosts(_visibleOnly?: boolean): Promise<BlogPostRecord[]> { return []; }
+  async getBlogPost(_slug: string): Promise<BlogPostRecord | null> { return null; }
+  async createBlogPost(_input: { slug: string; title: string; summary: string; content: string; publishedAt?: Date; visible?: boolean }): Promise<BlogPostRecord> { throw new Error("not implemented"); }
 }
 
 async function createTestApp(options: { rateLimitMax?: number } = {}) {
@@ -1961,5 +1977,87 @@ describe("Fyxvo API service", () => {
     expect(overviewBody.item.launchFunnel.counts.landingCtaClicks).toBe(0);
     expect(overviewBody.item.recentProjectActivity).toEqual([]);
     expect(overviewBody.item.recentFundingEvents).toEqual([]);
+  });
+
+  it("enforces API key scope dependencies when creating keys", async () => {
+    const context = await createTestApp();
+    appsToClose.add(context.app);
+
+    const owner = await authenticateWallet({
+      app: context.app,
+      repository: context.repository
+    });
+
+    const projectResponse = await context.app.inject({
+      method: "POST",
+      url: "/v1/projects",
+      headers: { authorization: `Bearer ${owner.token}` },
+      payload: { slug: "scope-test-project", name: "Scope Test Project" }
+    });
+    const projectId = projectResponse.json<{ item: { id: string } }>().item.id;
+
+    // An API key requesting priority:relay without rpc:request is rejected — rpc:request is a
+    // prerequisite for the gateway relay endpoints and must accompany priority:relay.
+    const missingRpcScope = await context.app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/api-keys`,
+      headers: { authorization: `Bearer ${owner.token}` },
+      payload: { label: "Bad priority key", scopes: ["priority:relay"] }
+    });
+    expect(missingRpcScope.statusCode).toBe(400);
+    expect(missingRpcScope.json()).toMatchObject({
+      code: "invalid_api_key_scope_set",
+      details: { requiredScopes: expect.arrayContaining(["rpc:request"]) }
+    });
+
+    // An API key requesting project:write without project:read is rejected — project:read is
+    // required when project:write is granted.
+    const missingReadScope = await context.app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/api-keys`,
+      headers: { authorization: `Bearer ${owner.token}` },
+      payload: { label: "Bad write key", scopes: ["project:write"] }
+    });
+    expect(missingReadScope.statusCode).toBe(400);
+    expect(missingReadScope.json()).toMatchObject({
+      code: "invalid_api_key_scope_set",
+      details: { requiredScopes: expect.arrayContaining(["project:read"]) }
+    });
+
+    // A key with only rpc:request scope is valid and can be created — it covers the standard
+    // RPC relay path but not the priority relay path.
+    const rpcOnlyKey = await context.app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/api-keys`,
+      headers: { authorization: `Bearer ${owner.token}` },
+      payload: { label: "RPC-only key", scopes: ["rpc:request"] }
+    });
+    expect(rpcOnlyKey.statusCode).toBe(201);
+    expect(rpcOnlyKey.json()).toMatchObject({
+      item: { status: "ACTIVE" },
+      plainTextKey: expect.stringMatching(/^fyxvo_live_/)
+    });
+
+    // A key with the full correct scope set for priority relay is also valid.
+    const priorityKey = await context.app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/api-keys`,
+      headers: { authorization: `Bearer ${owner.token}` },
+      payload: { label: "Priority relay key", scopes: ["rpc:request", "priority:relay"] }
+    });
+    expect(priorityKey.statusCode).toBe(201);
+    expect(priorityKey.json()).toMatchObject({
+      item: { status: "ACTIVE" },
+      plainTextKey: expect.stringMatching(/^fyxvo_live_/)
+    });
+
+    // Unauthenticated requests to project-management endpoints are always rejected regardless of
+    // any API key scope — the project management API requires a JWT session.
+    const noAuthProjectList = await context.app.inject({
+      method: "GET",
+      url: "/v1/projects"
+    });
+    expect(noAuthProjectList.statusCode).toBe(401);
+    expect(noAuthProjectList.json()).toMatchObject({ code: "unauthorized" });
   });
 });

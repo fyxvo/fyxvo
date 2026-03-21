@@ -43,7 +43,11 @@ import type {
   WhatsNewItem,
   WebhookDeliveryRecord,
   PerformanceMetricInput,
-  ProjectHealthScore
+  ProjectHealthScore,
+  SupportTicketRecord,
+  BlogPostRecord,
+  OperatorActivityItem,
+  DailyRequestCount
 } from "./types.js";
 
 type PrismaProject = PrismaNamespace.ProjectGetPayload<{
@@ -1665,6 +1669,158 @@ export class PrismaApiRepository implements ApiRepository {
     if (successRate !== null) score += Math.round(successRate * 10);
 
     return { score: Math.min(100, score), activated, hasFunding, hasApiKeys, hasTraffic, successRate };
+  }
+
+  async getOperatorActivity(limit = 10): Promise<OperatorActivityItem[]> {
+    const rows = await this.prisma.requestLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: { method: true, durationMs: true, route: true, statusCode: true, createdAt: true },
+    });
+    return rows.map((r) => ({
+      method: r.method,
+      durationMs: r.durationMs,
+      route: r.route,
+      success: r.statusCode < 400,
+      upstreamNode: null,
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+    }));
+  }
+
+  async getOperatorDailyRequests(days = 7): Promise<DailyRequestCount[]> {
+    const since = new Date(Date.now() - days * 86_400_000);
+    const rows = await this.prisma.requestLog.findMany({
+      where: { createdAt: { gte: since } },
+      select: { createdAt: true },
+    });
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      const d = (r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt)).toISOString().slice(0, 10);
+      counts.set(d, (counts.get(d) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+  }
+
+  async getNodeDistribution(projectId: string, days = 30): Promise<Array<{ node: string; count: number; avgLatencyMs: number }>> {
+    const since = new Date(Date.now() - days * 86_400_000);
+    const rows = await this.prisma.requestLog.findMany({
+      where: { projectId, createdAt: { gte: since } },
+      select: { durationMs: true },
+    });
+    // upstreamNode field is newly added — aggregate at durationMs level until data populates
+    const total = rows.reduce((sum, r) => sum + r.durationMs, 0);
+    const avgLatencyMs = rows.length > 0 ? Math.round(total / rows.length) : 0;
+    return rows.length > 0 ? [{ node: "default", count: rows.length, avgLatencyMs }] : [];
+  }
+
+  async recordClientError(_input: { component: string; message: string; page: string }): Promise<void> {
+    // Best-effort: no-op until a dedicated error log table is available
+    return Promise.resolve();
+  }
+
+  async createSupportTicket(input: { userId: string; projectId?: string; category: string; priority: string; subject: string; description: string }): Promise<SupportTicketRecord> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const row = await db.supportTicket.create({
+      data: {
+        userId: input.userId,
+        projectId: input.projectId ?? null,
+        category: input.category,
+        priority: input.priority,
+        subject: input.subject,
+        description: input.description,
+      },
+    });
+    return this._mapTicket(row);
+  }
+
+  async listSupportTickets(userId: string): Promise<SupportTicketRecord[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const rows = await db.supportTicket.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
+    return rows.map((r: unknown) => this._mapTicket(r));
+  }
+
+  async getSupportTicket(id: string, userId: string): Promise<SupportTicketRecord | null> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const row = await db.supportTicket.findFirst({ where: { id, userId } });
+    return row ? this._mapTicket(row) : null;
+  }
+
+  async adminListSupportTickets(status?: string): Promise<SupportTicketRecord[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const where = status ? { status } : {};
+    const rows = await db.supportTicket.findMany({ where, orderBy: { createdAt: "desc" }, take: 100 });
+    return rows.map((r: unknown) => this._mapTicket(r));
+  }
+
+  async adminRespondToTicket(id: string, response: string, status: string): Promise<SupportTicketRecord> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const row = await db.supportTicket.update({
+      where: { id },
+      data: { adminResponse: response, status, resolvedAt: status === "resolved" ? new Date() : null },
+    });
+    return this._mapTicket(row);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _mapTicket(r: any): SupportTicketRecord {
+    return {
+      id: r.id as string,
+      userId: r.userId as string,
+      projectId: (r.projectId as string | null) ?? null,
+      category: r.category as string,
+      priority: r.priority as string,
+      subject: r.subject as string,
+      description: r.description as string,
+      status: r.status as string,
+      adminResponse: (r.adminResponse as string | null) ?? null,
+      createdAt: r.createdAt instanceof Date ? (r.createdAt as Date).toISOString() : String(r.createdAt),
+      updatedAt: r.updatedAt instanceof Date ? (r.updatedAt as Date).toISOString() : String(r.updatedAt),
+      resolvedAt: r.resolvedAt ? (r.resolvedAt instanceof Date ? (r.resolvedAt as Date).toISOString() : String(r.resolvedAt)) : null,
+    };
+  }
+
+  async listBlogPosts(visibleOnly = true): Promise<BlogPostRecord[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const where = visibleOnly ? { visible: true } : {};
+    const rows = await db.blogPost.findMany({ where, orderBy: { publishedAt: "desc" } });
+    return rows.map((r: unknown) => this._mapBlogPost(r));
+  }
+
+  async getBlogPost(slug: string): Promise<BlogPostRecord | null> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const row = await db.blogPost.findUnique({ where: { slug } });
+    return row ? this._mapBlogPost(row) : null;
+  }
+
+  async createBlogPost(input: { slug: string; title: string; summary: string; content: string; publishedAt?: Date; visible?: boolean }): Promise<BlogPostRecord> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const row = await db.blogPost.create({ data: { ...input } });
+    return this._mapBlogPost(row);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _mapBlogPost(r: any): BlogPostRecord {
+    return {
+      id: r.id as string,
+      slug: r.slug as string,
+      title: r.title as string,
+      summary: r.summary as string,
+      content: r.content as string,
+      publishedAt: r.publishedAt ? (r.publishedAt instanceof Date ? (r.publishedAt as Date).toISOString() : String(r.publishedAt)) : null,
+      visible: r.visible as boolean,
+      createdAt: r.createdAt instanceof Date ? (r.createdAt as Date).toISOString() : String(r.createdAt),
+      updatedAt: r.updatedAt instanceof Date ? (r.updatedAt as Date).toISOString() : String(r.updatedAt),
+    };
   }
 }
 
