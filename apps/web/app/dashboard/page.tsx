@@ -36,6 +36,7 @@ import {
 } from "../../lib/format";
 import { GatewayHealthCard } from "../../components/gateway-health";
 import { OnboardingChecklist } from "../../components/onboarding-checklist";
+import { TosModal } from "../../components/tos-modal";
 import type { AdminOverview, NetworkStats, PortalProject } from "../../lib/types";
 import { webEnv } from "../../lib/env";
 import { getNetworkStats, getActiveAnnouncement, getWhatsNew, dismissWhatsNew } from "../../lib/api";
@@ -363,6 +364,7 @@ export default function DashboardPage() {
   const [announcement, setAnnouncement] = useState<{ id: string; message: string; severity: string } | null>(null);
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
   const [whatsNew, setWhatsNew] = useState<{ id: string; title: string; description: string; version: string } | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("onboarding_banner_dismissed") === "1");
 
   useEffect(() => {
     void getNetworkStats().then(setNetworkStats).catch(() => {});
@@ -432,6 +434,7 @@ export default function DashboardPage() {
   const journeySteps = [
     {
       title: "Connect wallet",
+      href: "/dashboard",
       body: "Use a supported Solana wallet to open a signed session. Fyxvo never stores a private key.",
       complete: portal.walletPhase === "authenticated",
       action:
@@ -443,6 +446,7 @@ export default function DashboardPage() {
     },
     {
       title: "Create project",
+      href: hasProjects ? `/projects/${portal.selectedProject?.slug ?? ""}` : "/dashboard",
       body: "Create the project record and sign the live on-chain activation transaction.",
       complete: hasProjects,
       action: hasProjects ? (
@@ -463,6 +467,7 @@ export default function DashboardPage() {
     },
     {
       title: "Fund with SOL",
+      href: "/funding",
       body: "Prepare the funding transaction, sign it in the wallet, and confirm it on devnet.",
       complete: hasFunding,
       action: (
@@ -473,6 +478,7 @@ export default function DashboardPage() {
     },
     {
       title: "Generate API key",
+      href: "/api-keys",
       body: "Create a scoped key, then copy the RPC endpoint and request example.",
       complete: hasApiKeys,
       action: (
@@ -483,6 +489,7 @@ export default function DashboardPage() {
     },
     {
       title: "Make first request",
+      href: "/playground",
       body: "Send a standard relay request with the generated key and watch analytics update.",
       complete: hasRelayTraffic,
       action: (
@@ -494,6 +501,7 @@ export default function DashboardPage() {
     },
     {
       title: "View analytics",
+      href: "/analytics",
       body: "Once traffic lands, use analytics and status to validate latency, errors, and spend posture.",
       complete: hasRelayTraffic,
       action: (
@@ -502,7 +510,11 @@ export default function DashboardPage() {
         </Button>
       ),
     },
-  ] as const;
+  ];
+
+  const hasCompletedOnboarding = journeySteps.every((s) => s.complete);
+  const incompleteSteps = journeySteps.filter((s) => !s.complete);
+  const nextStep = incompleteSteps[0];
 
   const availableSolCredits = portal.onchainSnapshot.balances?.availableSolCredits;
   const availableSolDisplay = availableSolCredits
@@ -520,6 +532,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-10 lg:space-y-12">
+      <TosModal />
       {announcement && !announcementDismissed && (
         <div className={`flex items-start justify-between gap-3 rounded-xl border px-4 py-3 ${
           announcement.severity === "critical"
@@ -622,6 +635,26 @@ export default function DashboardPage() {
           </>
         }
       />
+
+      {!hasCompletedOnboarding && !bannerDismissed && !portal.loading && portal.user && nextStep ? (
+        <div className="mb-4 flex items-center justify-between rounded-md border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3 text-sm">
+          <span className="text-[var(--fyxvo-text-muted)]">
+            <span className="font-medium text-[var(--fyxvo-text)]">{incompleteSteps.length} step{incompleteSteps.length !== 1 ? "s" : ""}</span>
+            {" "}remaining to your first Fyxvo request.{" "}
+            <Link href={nextStep.href} className="underline text-[var(--fyxvo-brand)]">
+              {nextStep.title} →
+            </Link>
+          </span>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => { sessionStorage.setItem("onboarding_banner_dismissed", "1"); setBannerDismissed(true); }}
+            className="ml-4 text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)]"
+          >
+            ✕
+          </button>
+        </div>
+      ) : null}
 
       {portal.walletPhase === "authenticated" ? (
         <div className="grid grid-cols-3 gap-4">

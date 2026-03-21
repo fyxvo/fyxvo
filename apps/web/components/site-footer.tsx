@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandLogo } from "./brand-logo";
 import { SocialLinks } from "./social-links";
+import { NewsletterSignup } from "./newsletter-signup";
 
 const productLinks = [
   { href: "/", label: "Home" },
@@ -101,6 +102,10 @@ export function SiteFooter() {
               ))}
             </div>
           </div>
+        </div>
+
+        <div className="mt-8 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg-elevated)] px-5 py-4">
+          <NewsletterSignup />
         </div>
 
         <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--fyxvo-border)] pt-6">

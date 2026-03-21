@@ -16,12 +16,20 @@ interface ChangeEntry {
   readonly text: string;
 }
 
+interface ChangeSection {
+  readonly title: string;
+  readonly entries: ChangeEntry[];
+}
+
 interface Release {
   readonly version: string;
   readonly date: string;
   readonly title: string;
   readonly description: string;
   readonly changes: ChangeEntry[];
+  readonly sections?: ChangeSection[];
+  readonly note?: string;
+  readonly upcoming?: boolean;
 }
 
 const releases: Release[] = [
@@ -136,71 +144,145 @@ const releases: Release[] = [
     date: "March 2026",
     title: "Devnet Private Alpha",
     description:
-      "The first public release of the Fyxvo control plane, relay gateway, and on-chain protocol. SOL-funded devnet RPC access, wallet-authenticated project management, and a full developer portal.",
-    changes: [
+      "The first public release of the Fyxvo control plane, relay gateway, and on-chain protocol. " +
+      "This release establishes the core flow — wallet authentication, on-chain project activation, SOL funding, " +
+      "scoped API keys, and a funded relay gateway with per-request analytics. Everything here is live on Solana devnet.",
+    changes: [],
+    sections: [
       {
-        type: "added",
-        text: "Wallet-authenticated sessions via Phantom, Solflare, and compatible Solana wallets using challenge-response signing.",
+        title: "Infrastructure",
+        entries: [
+          {
+            type: "added",
+            text: "Funded relay gateway with standard RPC path (/rpc) and priority relay path (/priority). Both paths enforce API key scope and deduct per-request lamport fees against the project treasury.",
+          },
+          {
+            type: "added",
+            text: "Multi-node routing with automatic fallback. Requests route to the healthiest available devnet node. Failures fall back transparently without surfacing errors to the caller.",
+          },
+          {
+            type: "added",
+            text: "Redis-backed rate limiting enforced at both the project and API key level. Rate window violations return 429 with a Retry-After header.",
+          },
+        ],
       },
       {
-        type: "added",
-        text: "Project creation with on-chain activation via the Fyxvo Solana program deployed to devnet.",
+        title: "Developer Tools",
+        entries: [
+          {
+            type: "added",
+            text: "Wallet-authenticated sessions via Phantom, Solflare, and compatible Solana wallets. Authentication uses a challenge-response signing flow — no private key is ever sent to Fyxvo.",
+          },
+          {
+            type: "added",
+            text: "API key management with scoped credentials. Keys can be scoped to standard RPC, priority relay, or both. Revocation is instant.",
+          },
+          {
+            type: "added",
+            text: "Command palette (⌘K) for fast navigation across all portal sections. Fuzzy search across projects, API keys, and documentation.",
+          },
+          {
+            type: "added",
+            text: "Dark and light mode with automatic system preference detection. Preference persists across sessions.",
+          },
+          {
+            type: "added",
+            text: "Docs section with quickstart, API reference, and funding mechanics. Includes copy-ready curl examples for every endpoint.",
+          },
+        ],
       },
       {
-        type: "added",
-        text: "SOL funding flow: prepare, sign, and confirm funding transactions to load project treasury credits.",
+        title: "Analytics and Monitoring",
+        entries: [
+          {
+            type: "added",
+            text: "Request logging, analytics aggregation, and latency tracking per project and API key. Aggregates update on every request with no sampling.",
+          },
+          {
+            type: "added",
+            text: "Live status page with real-time data from API and gateway health endpoints. Shows per-service condition and last-seen timestamps.",
+          },
+          {
+            type: "added",
+            text: "In-app notifications for low balance, high request volume, and key lifecycle events. Notification state is stored per user.",
+          },
+        ],
       },
       {
-        type: "added",
-        text: "API key management with scoped credentials for standard RPC and priority relay access.",
+        title: "Platform and Operations",
+        entries: [
+          {
+            type: "added",
+            text: "Project creation with on-chain activation via the Fyxvo Solana program deployed to devnet. Each project corresponds to a unique on-chain PDA.",
+          },
+          {
+            type: "added",
+            text: "SOL funding flow: prepare, sign, and confirm funding transactions to load project treasury credits. The API verifies the on-chain signature and refreshes spendable balance.",
+          },
+          {
+            type: "added",
+            text: "Transaction history with Solana Explorer links for all confirmed funding events.",
+          },
+          {
+            type: "added",
+            text: "Onboarding checklist tracking activation, funding, API key creation, and first relay request. State is computed live from the project record.",
+          },
+        ],
       },
       {
-        type: "added",
-        text: "Funded relay gateway with standard RPC path and priority relay path, both scope-enforced.",
+        title: "Security",
+        entries: [
+          {
+            type: "changed",
+            text: "Authority control uses single-signer posture for devnet launch. Governed migration and multisig upgrade authority are on the roadmap for mainnet preparation.",
+          },
+          {
+            type: "changed",
+            text: "USDC funding path exists on-chain but remains configuration-gated during private alpha. The contract supports it; the product does not expose it yet.",
+          },
+        ],
       },
       {
-        type: "added",
-        text: "Request logging, analytics aggregation, and latency tracking per project and API key.",
+        title: "Documentation",
+        entries: [
+          {
+            type: "changed",
+            text: "Operator marketplace is managed infrastructure during private alpha — all node capacity is Fyxvo-operated. External operator onboarding is a planned next step documented in the roadmap.",
+          },
+        ],
       },
+    ],
+  },
+  {
+    version: "Coming in v0.4.0",
+    date: "No dates promised — when it's ready.",
+    title: "What's Next",
+    description:
+      "These items are in active development or planned. None of them have committed ship dates. " +
+      "If any of these are blocking you, reach out — prioritization is informed by real usage.",
+    changes: [],
+    upcoming: true,
+    sections: [
       {
-        type: "added",
-        text: "In-app notifications for low balance, high request volume, and key events.",
-      },
-      {
-        type: "added",
-        text: "Live status page with real-time data from API and gateway health endpoints.",
-      },
-      {
-        type: "added",
-        text: "Command palette (⌘K) for fast navigation across all portal sections.",
-      },
-      {
-        type: "added",
-        text: "Transaction history with Solana Explorer links for all funding events.",
-      },
-      {
-        type: "added",
-        text: "Onboarding checklist tracking activation, funding, API key creation, and first relay request.",
-      },
-      {
-        type: "added",
-        text: "Dark and light mode with automatic system preference detection.",
-      },
-      {
-        type: "added",
-        text: "Docs section with quickstart, API reference, and funding mechanics.",
-      },
-      {
-        type: "changed",
-        text: "USDC funding path exists on-chain but remains configuration-gated during private alpha.",
-      },
-      {
-        type: "changed",
-        text: "Operator marketplace is managed infrastructure during private alpha — external operator onboarding is a planned next step.",
-      },
-      {
-        type: "changed",
-        text: "Authority control uses single-signer posture for devnet launch. Governed migration is on the roadmap.",
+        title: "Planned",
+        entries: [
+          {
+            type: "added",
+            text: "Mainnet preparation: network configuration, authority migration, and operator capacity validation before any mainnet routing is enabled.",
+          },
+          {
+            type: "added",
+            text: "External node operator onboarding: a structured path for external operators to register, stake, and receive traffic allocation through the Fyxvo protocol.",
+          },
+          {
+            type: "added",
+            text: "USDC payment support: enable the existing on-chain USDC path for projects that prefer stablecoin funding over SOL.",
+          },
+          {
+            type: "added",
+            text: "Email notifications: delivery layer for the existing notification preferences — low balance alerts, key events, and relay status changes.",
+          },
+        ],
       },
     ],
   },
@@ -241,7 +323,7 @@ export default function ChangelogPage() {
               {/* Version sidebar */}
               <div className="sm:w-44 sm:shrink-0 sm:pt-1">
                 <div className="sticky top-6 space-y-2">
-                  <Badge tone="brand">{release.version}</Badge>
+                  <Badge tone={release.upcoming ? "neutral" : "brand"}>{release.version}</Badge>
                   <p className="text-xs text-[var(--fyxvo-text-muted)]">{release.date}</p>
                 </div>
               </div>
@@ -255,24 +337,58 @@ export default function ChangelogPage() {
                   </p>
                 </div>
 
-                <div className="space-y-3">
-                  {release.changes.map((entry, idx) => {
-                    const tone = toneMap[entry.type];
-                    return (
-                      <div
-                        key={idx}
-                        className="flex gap-3 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3"
-                      >
-                        <span
-                          className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${tone.color}`}
+                {/* Flat change list (v0.2.0, v0.3.0) */}
+                {release.changes.length > 0 && (
+                  <div className="space-y-3">
+                    {release.changes.map((entry, idx) => {
+                      const tone = toneMap[entry.type];
+                      return (
+                        <div
+                          key={idx}
+                          className="flex gap-3 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3"
                         >
-                          {tone.label}
-                        </span>
-                        <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">{entry.text}</p>
+                          <span
+                            className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${tone.color}`}
+                          >
+                            {tone.label}
+                          </span>
+                          <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">{entry.text}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Sectioned change list (v0.1.0, upcoming) */}
+                {release.sections && release.sections.length > 0 && (
+                  <div className="space-y-8">
+                    {release.sections.map((section) => (
+                      <div key={section.title}>
+                        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--fyxvo-text-muted)]">
+                          {section.title}
+                        </h3>
+                        <div className="space-y-3">
+                          {section.entries.map((entry, idx) => {
+                            const tone = toneMap[entry.type];
+                            return (
+                              <div
+                                key={idx}
+                                className="flex gap-3 rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-4 py-3"
+                              >
+                                <span
+                                  className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${tone.color}`}
+                                >
+                                  {tone.label}
+                                </span>
+                                <p className="text-sm leading-6 text-[var(--fyxvo-text-soft)]">{entry.text}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </article>

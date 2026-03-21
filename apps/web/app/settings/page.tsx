@@ -123,6 +123,7 @@ export default function SettingsPage() {
   const [projectGithubUrl, setProjectGithubUrl] = useState(portal.selectedProject?.githubUrl ?? "");
   const [projectIsPublic, setProjectIsPublic] = useState(portal.selectedProject?.isPublic ?? false);
   const [projectPublicSlug, setProjectPublicSlug] = useState(portal.selectedProject?.publicSlug ?? "");
+  const [projectLeaderboardVisible, setProjectLeaderboardVisible] = useState(portal.selectedProject?.leaderboardVisible ?? false);
   const [projectFieldsSaving, setProjectFieldsSaving] = useState(false);
 
   // Rename project
@@ -207,6 +208,7 @@ export default function SettingsPage() {
         githubUrl: projectGithubUrl || null,
         isPublic: projectIsPublic,
         publicSlug: projectIsPublic && projectPublicSlug ? projectPublicSlug.trim() : null,
+        leaderboardVisible: projectLeaderboardVisible,
       });
       await portal.refresh();
     } finally { setProjectFieldsSaving(false); }
@@ -457,6 +459,9 @@ export default function SettingsPage() {
                   className="h-9 text-sm w-full max-w-xs"
                   disabled={!isAuthenticated}
                 />
+                {emailValue && !portal.user?.emailVerified ? (
+                  <span className="ml-2 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">Unverified</span>
+                ) : null}
                 <Button
                   variant="secondary"
                   size="sm"
@@ -472,6 +477,9 @@ export default function SettingsPage() {
               <p className="text-xs text-[var(--fyxvo-text-muted)]">
                 <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-amber-600 dark:text-amber-400">Coming soon</span>
                 {" "}Email delivery is not yet active.
+              </p>
+              <p className="text-xs text-[var(--fyxvo-text-muted)]">
+                Email verification will be required for email notifications when that feature launches.
               </p>
             </div>
           </SettingRow>
@@ -795,6 +803,28 @@ export default function SettingsPage() {
               </div>
             </SettingRow>
           )}
+          <SettingRow label="Leaderboard" description="Include this project in the public developer leaderboard ranked by request volume.">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={projectLeaderboardVisible}
+                onClick={() => setProjectLeaderboardVisible(!projectLeaderboardVisible)}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                  projectLeaderboardVisible ? "bg-brand-500" : "bg-[var(--fyxvo-border-strong)]"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                    projectLeaderboardVisible ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </button>
+              <span className="text-xs text-[var(--fyxvo-text-muted)]">
+                {projectLeaderboardVisible ? "Show on public leaderboard" : "Hidden from leaderboard"}
+              </span>
+            </div>
+          </SettingRow>
           <SettingRow label="" description="">
             <Button variant="secondary" size="sm" onClick={() => void saveProjectFields()} disabled={projectFieldsSaving || !portal.selectedProject || !portal.token}>
               {projectFieldsSaving ? "Saving…" : "Save project fields"}

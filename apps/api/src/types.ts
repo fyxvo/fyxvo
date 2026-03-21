@@ -71,6 +71,7 @@ export interface UpdateProjectInput {
   readonly githubUrl?: string | null;
   readonly isPublic?: boolean;
   readonly publicSlug?: string | null;
+  readonly leaderboardVisible?: boolean;
 }
 
 export interface CreateNotificationInput {
@@ -577,6 +578,20 @@ export interface BlogPostRecord {
   updatedAt: string;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  projectName: string;
+  totalRequests: number;
+  avgLatencyMs: number;
+  hasPublicPage: boolean;
+  publicSlug: string | null;
+}
+
+export interface NewsletterSubscribeInput {
+  email: string;
+  source?: string;
+}
+
 export interface OperatorActivityItem {
   method: string;
   durationMs: number;
@@ -618,8 +633,8 @@ export interface NotificationPrefsUpdate {
 }
 
 export interface ApiRepository {
-  findUserByWallet(walletAddress: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean; createdAt: Date } | null>;
-  findUserById(userId: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean; createdAt: Date } | null>;
+  findUserByWallet(walletAddress: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean; createdAt: Date; tosAcceptedAt: Date | null; emailVerified: boolean } | null>;
+  findUserById(userId: string): Promise<AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean; createdAt: Date; tosAcceptedAt: Date | null; emailVerified: boolean } | null>;
   updateUser(userId: string, data: NotificationPrefsUpdate): Promise<void>;
   createOrRefreshWalletUser(
     walletAddress: string,
@@ -727,6 +742,45 @@ export interface ApiRepository {
   listBlogPosts(visibleOnly?: boolean): Promise<BlogPostRecord[]>;
   getBlogPost(slug: string): Promise<BlogPostRecord | null>;
   createBlogPost(input: { slug: string; title: string; summary: string; content: string; publishedAt?: Date; visible?: boolean }): Promise<BlogPostRecord>;
+  // Newsletter
+  subscribeNewsletter(input: NewsletterSubscribeInput): Promise<void>;
+  getNewsletterCount(): Promise<number>;
+  // Leaderboard
+  getLeaderboard(): Promise<LeaderboardEntry[]>;
+  // Email verification
+  setEmailVerificationToken(userId: string, token: string, expiry: Date): Promise<void>;
+  verifyEmail(token: string): Promise<{ success: boolean }>;
+  // ToS acceptance
+  acceptTos(userId: string): Promise<void>;
+  getTosStatus(userId: string): Promise<{ accepted: boolean; acceptedAt: string | null }>;
+  // Referral conversion helpers
+  findUserByReferralCode(referralCode: string): Promise<{ id: string } | null>;
+  markReferralConverted(clickId: string): Promise<void>;
+  findLatestUnconvertedClick(referrerId: string): Promise<{ id: string } | null>;
+  // Admin platform stats
+  getAdminPlatformStats(): Promise<AdminPlatformStats>;
+  getNewsletterSubscribers(limit?: number): Promise<NewsletterSubscriberList>;
+}
+
+export interface AdminPlatformStats {
+  readonly totalUsers: number;
+  readonly totalProjects: number;
+  readonly requestsToday: number;
+  readonly requestsThisWeek: number;
+  readonly newsletterCount: number;
+  readonly recentSignups: ReadonlyArray<{
+    readonly walletAddress: string;
+    readonly createdAt: string;
+    readonly projectCount: number;
+  }>;
+}
+
+export interface NewsletterSubscriberList {
+  readonly count: number;
+  readonly recent: ReadonlyArray<{
+    readonly email: string;
+    readonly createdAt: string;
+  }>;
 }
 
 export interface ProjectCreationPreparation {

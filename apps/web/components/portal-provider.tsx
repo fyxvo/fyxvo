@@ -10,6 +10,7 @@ import {
   deleteProject as deleteProjectRequest,
   getAdminStats,
   getAnalyticsOverview,
+  getMe,
   getOnchainSnapshot,
   getOperators,
   getProjectAnalytics,
@@ -356,14 +357,20 @@ export function PortalProvider({ children }: PropsWithChildren) {
     setErrorMessage(null);
 
     try {
-      const nextProjects = await listProjects(token);
+      const [nextProjects, meResult] = await Promise.all([
+        listProjects(token),
+        getMe(token).catch(() => null),
+      ]);
       const nextSelectedProjectId =
         nextProjects.find((project) => project.id === selectedProjectId)?.id ??
         nextProjects[0]?.id ??
         "";
 
+      const refreshedUser = meResult?.user ?? user;
+      const effectiveRole = refreshedUser?.role ?? user?.role;
+
       const [stats, overview, nextOperators] =
-        user?.role === "OWNER" || user?.role === "ADMIN"
+        effectiveRole === "OWNER" || effectiveRole === "ADMIN"
           ? await Promise.all([getAdminStats(token), getAdminOverview(token), getOperators(token)])
           : [null, null, []];
 
@@ -383,17 +390,23 @@ export function PortalProvider({ children }: PropsWithChildren) {
         setAdminOverview(overview);
         setOperators(nextOperators);
         setWalletPhase("authenticated");
+        if (refreshedUser) {
+          setUser(refreshedUser);
+        }
       });
 
       if (typeof window !== "undefined") {
         window.localStorage.setItem(PROJECT_STORAGE_KEY, nextSelectedProjectId);
+        if (refreshedUser && walletAddress) {
+          storeSession({ token, user: refreshedUser, walletAddress });
+        }
       }
     } catch (error) {
       setErrorMessage(extractErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [selectedProjectId, token, user?.role]);
+  }, [selectedProjectId, token, user, walletAddress]);
 
   useEffect(() => {
     const stored = loadStoredSession();

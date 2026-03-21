@@ -49,7 +49,9 @@ import type {
   FundingHistoryItem,
   FundingRecordInput,
   IdempotencyLookup,
+  LeaderboardEntry,
   MethodBreakdownItem,
+  NewsletterSubscribeInput,
   NotificationItem,
   OperatorSummary,
   PerformanceMetricInput,
@@ -63,7 +65,9 @@ import type {
   SupportTicketRecord,
   BlogPostRecord,
   OperatorActivityItem,
-  DailyRequestCount
+  DailyRequestCount,
+  AdminPlatformStats,
+  NewsletterSubscriberList
 } from "../src/types.js";
 
 function makeEnv(overrides: Partial<Record<string, string>> = {}) {
@@ -177,7 +181,7 @@ class MemoryApiRepository implements ApiRepository {
     return this.projects.size;
   }
 
-  private mapUser(user: User): AuthenticatedUser & { authNonce: string } {
+  private mapUser(user: User): AuthenticatedUser & { authNonce: string; onboardingDismissed: boolean; createdAt: Date; tosAcceptedAt: Date | null; emailVerified: boolean } {
     return {
       id: user.id,
       walletAddress: user.walletAddress,
@@ -186,7 +190,11 @@ class MemoryApiRepository implements ApiRepository {
       displayName: user.displayName,
       email: user.email,
       role: user.role,
-      status: user.status
+      status: user.status,
+      onboardingDismissed: false,
+      createdAt: user.createdAt,
+      tosAcceptedAt: null,
+      emailVerified: false,
     };
   }
 
@@ -979,6 +987,29 @@ class MemoryApiRepository implements ApiRepository {
   async listBlogPosts(_visibleOnly?: boolean): Promise<BlogPostRecord[]> { return []; }
   async getBlogPost(_slug: string): Promise<BlogPostRecord | null> { return null; }
   async createBlogPost(_input: { slug: string; title: string; summary: string; content: string; publishedAt?: Date; visible?: boolean }): Promise<BlogPostRecord> { throw new Error("not implemented"); }
+  async subscribeNewsletter(_input: NewsletterSubscribeInput): Promise<void> {}
+  async getNewsletterCount(): Promise<number> { return 0; }
+  async getLeaderboard(): Promise<LeaderboardEntry[]> { return []; }
+  async setEmailVerificationToken(_userId: string, _token: string, _expiry: Date): Promise<void> {}
+  async verifyEmail(_token: string): Promise<{ success: boolean }> { return { success: false }; }
+  async acceptTos(_userId: string): Promise<void> {}
+  async getTosStatus(_userId: string): Promise<{ accepted: boolean; acceptedAt: string | null }> { return { accepted: false, acceptedAt: null }; }
+  async findUserByReferralCode(_referralCode: string): Promise<{ id: string } | null> { return null; }
+  async markReferralConverted(_clickId: string): Promise<void> {}
+  async findLatestUnconvertedClick(_referrerId: string): Promise<{ id: string } | null> { return null; }
+  async getAdminPlatformStats(): Promise<AdminPlatformStats> {
+    return {
+      totalUsers: this.users.size,
+      totalProjects: this.projects.size,
+      requestsToday: 0,
+      requestsThisWeek: 0,
+      newsletterCount: 0,
+      recentSignups: [],
+    };
+  }
+  async getNewsletterSubscribers(_limit?: number): Promise<NewsletterSubscriberList> {
+    return { count: 0, recent: [] };
+  }
 }
 
 async function createTestApp(options: { rateLimitMax?: number } = {}) {

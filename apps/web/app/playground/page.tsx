@@ -195,6 +195,19 @@ const RPC_METHODS: RpcMethod[] = [
     params: [{ name: "blockhash", placeholder: "Blockhash string", required: true }],
     responseSchema: [{ key: "value", type: "boolean", description: "Whether the blockhash is still valid" }],
   },
+  // Decode
+  {
+    method: "decodeTransaction",
+    category: "Decode",
+    description: "Decode a Solana transaction — view accounts, instructions, and program IDs",
+    params: [{ name: "signature", placeholder: "Transaction signature (base58)", required: true }],
+    responseSchema: [
+      { key: "slot", type: "number", description: "Slot the transaction was processed in" },
+      { key: "meta.fee", type: "number", description: "Fee in lamports" },
+      { key: "transaction.message.accountKeys", type: "array", description: "Accounts involved in the transaction" },
+      { key: "transaction.message.instructions", type: "array", description: "Instructions in the transaction" },
+    ],
+  },
 ];
 
 const CATEGORIES = [...new Set(RPC_METHODS.map((m) => m.category))];
@@ -269,6 +282,55 @@ function formatResponse(raw: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Decode helpers
+// ---------------------------------------------------------------------------
+
+const KNOWN_PROGRAMS: Record<string, string> = {
+  "11111111111111111111111111111111": "System Program",
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA": "Token Program (SPL)",
+  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bv6": "Associated Token Program",
+};
+
+function truncateAddress(addr: string, start = 8, end = 4): string {
+  if (addr.length <= start + end) return addr;
+  return `${addr.slice(0, start)}…${addr.slice(-end)}`;
+}
+
+interface DecodedTransaction {
+  fee: number | null;
+  accounts: string[];
+  programIds: string[];
+}
+
+function decodeTransactionResponse(raw: string): DecodedTransaction | null {
+  try {
+    const parsed = JSON.parse(raw) as {
+      result?: {
+        meta?: { fee?: number };
+        transaction?: {
+          message?: {
+            accountKeys?: string[];
+            instructions?: Array<{ programIdIndex?: number }>;
+          };
+        };
+      };
+    };
+    const result = parsed?.result;
+    if (!result) return null;
+    const fee = result?.meta?.fee ?? null;
+    const accountKeys = result?.transaction?.message?.accountKeys ?? [];
+    const instructions = result?.transaction?.message?.instructions ?? [];
+    const programIdxs = instructions
+      .map((ix) => (typeof ix.programIdIndex === "number" ? ix.programIdIndex : null))
+      .filter((i): i is number => i !== null);
+    const programIds = [...new Set(programIdxs.map((i) => accountKeys[i]).filter((a): a is string => Boolean(a)))];
+    return { fee, accounts: accountKeys, programIds };
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -294,6 +356,9 @@ function PlaygroundContent() {
   const [compareResponse, setCompareResponse] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [compareDurationMs, setCompareDurationMs] = useState<number | null>(null);
+
+  // Decode view
+  const [decodedView, setDecodedView] = useState<DecodedTransaction | "error" | null>(null);
 
   // Schema panel
   const [schemaOpen, setSchemaOpen] = useState(false);
@@ -343,6 +408,7 @@ function PlaygroundContent() {
     setResponseTimeMs(null);
     setCompareResponseTimeMs(null);
     setErrorExplanation(null);
+    setDecodedView(null);
   }, []);
 
   // Derive error explanation from response
@@ -384,7 +450,17 @@ function PlaygroundContent() {
 
   async function sendRequest() {
     if (!isAuthenticated) return;
-    const body = buildRpcBody(selectedMethod.method, selectedMethod.params, paramValues);
+
+    const isDecodeMethod = selectedMethod.method === "decodeTransaction";
+    const body = isDecodeMethod
+      ? JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "getTransaction",
+          params: [paramValues["signature"] ?? "", { encoding: "json", maxSupportedTransactionVersion: 0 }],
+        })
+      : buildRpcBody(selectedMethod.method, selectedMethod.params, paramValues);
+
     setLoading(true);
     setError(null);
     setResponse(null);
@@ -394,6 +470,7 @@ function PlaygroundContent() {
     setCompareDurationMs(null);
     setResponseTimeMs(null);
     setCompareResponseTimeMs(null);
+    setDecodedView(null);
 
     try {
       if (compareMode) {
@@ -424,7 +501,12 @@ function PlaygroundContent() {
         const elapsed = Date.now() - startMs;
         setDurationMs(result.durationMs);
         setResponseTimeMs(elapsed);
-        setResponse(formatResponse(result.text));
+        const formatted = formatResponse(result.text);
+        setResponse(formatted);
+        if (isDecodeMethod) {
+          const decoded = decodeTransactionResponse(result.text);
+          setDecodedView(decoded ?? "error");
+        }
         addHistory(selectedMethod.method, mode, result.durationMs, result.status);
         setSessionRequestCount((c) => c + 1);
       }
@@ -624,7 +706,24 @@ function PlaygroundContent() {
               )}
 
               {/* Params + Examples */}
-              {selectedMethod.params.length > 0 && (
+              {selectedMethod.method === "decodeTransaction" ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Parameters</p>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--fyxvo-text)]">
+                      Transaction Signature (base58)
+                      <span className="ml-1 text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={paramValues["signature"] ?? ""}
+                      onChange={(e) => setParamValues((prev) => ({ ...prev, signature: e.target.value }))}
+                      placeholder="Paste a base58 transaction signature"
+                      className="w-full resize-none rounded-lg border border-[var(--fyxvo-border)] bg-[var(--fyxvo-panel-soft)] px-3 py-2 font-mono text-sm text-[var(--fyxvo-text)] placeholder:text-[var(--fyxvo-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--fyxvo-accent)]"
+                    />
+                  </div>
+                </div>
+              ) : selectedMethod.params.length > 0 ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-medium uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Parameters</p>
@@ -660,7 +759,7 @@ function PlaygroundContent() {
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
 
               <Button
                 onClick={() => void sendRequest()}
@@ -675,7 +774,7 @@ function PlaygroundContent() {
                     </svg>
                     Sending…
                   </span>
-                ) : compareMode ? "Send (Standard + Priority)" : "Send Request"}
+                ) : selectedMethod.method === "decodeTransaction" ? "Decode Transaction" : compareMode ? "Send (Standard + Priority)" : "Send Request"}
               </Button>
             </CardContent>
           </Card>
@@ -792,6 +891,83 @@ function PlaygroundContent() {
                 </CardContent>
               </Card>
             )
+          )}
+
+          {/* Decoded view — only shown for decodeTransaction */}
+          {decodedView !== null && (
+            <Card className="fyxvo-surface border-[color:var(--fyxvo-border)]">
+              <CardHeader>
+                <CardTitle>Decoded View</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {decodedView === "error" ? (
+                  <Notice tone="warning" title="Could not decode response">
+                    The response could not be parsed into a decoded transaction view. Check the raw JSON above.
+                  </Notice>
+                ) : (
+                  <>
+                    <div className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] p-4 space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">Transaction Fee</p>
+                      <p className="text-sm font-mono text-[var(--fyxvo-text)]">
+                        {decodedView.fee !== null ? `${decodedView.fee.toLocaleString()} lamports` : "—"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] p-4 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+                        Accounts Involved ({decodedView.accounts.length})
+                      </p>
+                      <div className="space-y-1">
+                        {decodedView.accounts.map((addr, i) => {
+                          const knownLabel = KNOWN_PROGRAMS[addr];
+                          return (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="text-xs text-[var(--fyxvo-text-muted)] w-4">{i}</span>
+                              <code className="text-xs font-mono text-[var(--fyxvo-text)]">
+                                {truncateAddress(addr)}
+                              </code>
+                              {knownLabel ? (
+                                <span className="text-xs text-[var(--fyxvo-brand)]">{knownLabel}</span>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {decodedView.programIds.length > 0 && (
+                      <div className="rounded-xl border border-[var(--fyxvo-border)] bg-[var(--fyxvo-bg)] p-4 space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fyxvo-text-muted)]">
+                          Program Labels
+                        </p>
+                        <div className="space-y-1.5">
+                          {decodedView.programIds.map((id) => {
+                            const programLabel = KNOWN_PROGRAMS[id];
+                            return (
+                              <div key={id} className="flex items-center gap-2">
+                                <code className="text-xs font-mono text-[var(--fyxvo-text)]">{truncateAddress(id)}</code>
+                                {programLabel ? (
+                                  <span className="text-xs font-medium text-[var(--fyxvo-brand)]">{programLabel}</span>
+                                ) : (
+                                  <a
+                                    href={`https://explorer.solana.com/address/${id}?cluster=devnet`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-[var(--fyxvo-text-muted)] hover:text-[var(--fyxvo-text)] underline"
+                                  >
+                                    View on Explorer
+                                  </a>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
           )}
         </div>
 

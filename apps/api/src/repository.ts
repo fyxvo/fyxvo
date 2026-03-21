@@ -24,8 +24,10 @@ import type {
   FundingHistoryItem,
   FundingRecordInput,
   IdempotencyLookup,
+  LeaderboardEntry,
   MethodBreakdownItem,
   NetworkStats,
+  NewsletterSubscribeInput,
   NotificationItem,
   NotificationPrefsUpdate,
   OperatorSummary,
@@ -47,7 +49,9 @@ import type {
   SupportTicketRecord,
   BlogPostRecord,
   OperatorActivityItem,
-  DailyRequestCount
+  DailyRequestCount,
+  AdminPlatformStats,
+  NewsletterSubscriberList
 } from "./types.js";
 
 type PrismaProject = PrismaNamespace.ProjectGetPayload<{
@@ -74,6 +78,8 @@ function mapUser(user: {
   status: AuthenticatedUser["status"];
   onboardingDismissed?: boolean;
   createdAt?: Date;
+  tosAcceptedAt?: Date | null;
+  emailVerified?: boolean;
 }) {
   return {
     id: user.id,
@@ -86,6 +92,8 @@ function mapUser(user: {
     status: user.status,
     onboardingDismissed: user.onboardingDismissed ?? false,
     createdAt: user.createdAt ?? new Date(0),
+    tosAcceptedAt: user.tosAcceptedAt ?? null,
+    emailVerified: user.emailVerified ?? false,
   };
 }
 
@@ -172,6 +180,14 @@ export class PrismaApiRepository implements ApiRepository {
     });
   }
 
+  async acceptTos(userId: string): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (this.prisma.user as any).update({
+      where: { id: userId },
+      data: { tosAcceptedAt: new Date() },
+    });
+  }
+
   async getNextChainProjectId() {
     const aggregate = await this.prisma.project.aggregate({
       _max: {
@@ -249,7 +265,8 @@ export class PrismaApiRepository implements ApiRepository {
   }
 
   async updateProject(projectId: string, input: UpdateProjectInput) {
-    const project = await this.prisma.project.update({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const project = await (this.prisma.project as any).update({
       where: { id: projectId },
       data: {
         ...(input.slug !== undefined ? { slug: input.slug } : {}),
@@ -264,7 +281,8 @@ export class PrismaApiRepository implements ApiRepository {
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
         ...(input.githubUrl !== undefined ? { githubUrl: input.githubUrl } : {}),
         ...(input.isPublic !== undefined ? { isPublic: input.isPublic } : {}),
-        ...(input.publicSlug !== undefined ? { publicSlug: input.publicSlug } : {})
+        ...(input.publicSlug !== undefined ? { publicSlug: input.publicSlug } : {}),
+        ...(input.leaderboardVisible !== undefined ? { leaderboardVisible: input.leaderboardVisible } : {})
       },
       include: {
         owner: true,
@@ -1820,6 +1838,173 @@ export class PrismaApiRepository implements ApiRepository {
       visible: r.visible as boolean,
       createdAt: r.createdAt instanceof Date ? (r.createdAt as Date).toISOString() : String(r.createdAt),
       updatedAt: r.updatedAt instanceof Date ? (r.updatedAt as Date).toISOString() : String(r.updatedAt),
+    };
+  }
+
+  async subscribeNewsletter(input: NewsletterSubscribeInput): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    await db.newsletterSubscriber.upsert({
+      where: { email: input.email },
+      update: {},
+      create: { email: input.email, source: input.source ?? "landing" },
+    });
+  }
+
+  async getNewsletterCount(): Promise<number> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    return db.newsletterSubscriber.count();
+  }
+
+  async getLeaderboard(): Promise<LeaderboardEntry[]> {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const projects = await db.project.findMany({
+      where: { leaderboardVisible: true, archivedAt: null },
+      select: {
+        id: true,
+        name: true,
+        publicSlug: true,
+        requestLogs: {
+          where: { createdAt: { gte: since } },
+          select: { durationMs: true },
+        },
+      },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (projects as any[])
+      .map((p: { name: string; publicSlug: string | null; requestLogs: Array<{ durationMs: number }> }) => {
+        const totalRequests = p.requestLogs.length;
+        const avgLatencyMs = totalRequests > 0
+          ? Math.round(p.requestLogs.reduce((s, r) => s + r.durationMs, 0) / totalRequests)
+          : 0;
+        return {
+          projectName: p.name,
+          totalRequests,
+          avgLatencyMs,
+          hasPublicPage: p.publicSlug != null,
+          publicSlug: p.publicSlug,
+        };
+      })
+      .sort((a: { totalRequests: number }, b: { totalRequests: number }) => b.totalRequests - a.totalRequests)
+      .slice(0, 10)
+      .map((entry: Omit<LeaderboardEntry, "rank">, i: number) => ({ rank: i + 1, ...entry }));
+  }
+
+  async setEmailVerificationToken(userId: string, token: string, expiry: Date): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (this.prisma.user as any).update({
+      where: { id: userId },
+      data: { emailVerificationToken: token, emailVerificationExpiry: expiry },
+    });
+  }
+
+  async verifyEmail(token: string): Promise<{ success: boolean }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = this.prisma as any;
+    const user = await db.user.findFirst({
+      where: { emailVerificationToken: token, emailVerificationExpiry: { gte: new Date() } },
+    }) as { id: string } | null;
+    if (!user) return { success: false };
+    await db.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true, emailVerificationToken: null, emailVerificationExpiry: null },
+    });
+    return { success: true };
+  }
+
+  async getTosStatus(userId: string): Promise<{ accepted: boolean; acceptedAt: string | null }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const user = await (this.prisma.user as any).findUnique({
+      where: { id: userId },
+      select: { tosAcceptedAt: true },
+    }) as { tosAcceptedAt: Date | null } | null;
+    if (!user) return { accepted: false, acceptedAt: null };
+    return {
+      accepted: user.tosAcceptedAt != null,
+      acceptedAt: user.tosAcceptedAt?.toISOString() ?? null,
+    };
+  }
+
+  async findUserByReferralCode(referralCode: string): Promise<{ id: string } | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { referralCode },
+      select: { id: true },
+    });
+    return user ?? null;
+  }
+
+  async markReferralConverted(clickId: string): Promise<void> {
+    await this.prisma.referralClick.update({
+      where: { id: clickId },
+      data: { convertedToSignup: true },
+    });
+  }
+
+  async findLatestUnconvertedClick(referrerId: string): Promise<{ id: string } | null> {
+    const click = await this.prisma.referralClick.findFirst({
+      where: { referrerId, convertedToSignup: false },
+      orderBy: { clickedAt: "desc" },
+    });
+    return click ? { id: click.id } : null;
+  }
+
+  async getAdminPlatformStats(): Promise<AdminPlatformStats> {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [totalUsers, totalProjects, requestsToday, requestsThisWeek, newsletterCount, recentSignupRows] =
+      await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.project.count(),
+        this.prisma.requestLog.count({ where: { createdAt: { gte: startOfToday } } }),
+        this.prisma.requestLog.count({ where: { createdAt: { gte: startOfWeek } } }),
+        this.prisma.statusSubscriber.count({ where: { active: true } }),
+        this.prisma.user.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: {
+            walletAddress: true,
+            createdAt: true,
+            _count: { select: { projects: true } },
+          },
+        }),
+      ]);
+
+    return {
+      totalUsers,
+      totalProjects,
+      requestsToday,
+      requestsThisWeek,
+      newsletterCount,
+      recentSignups: recentSignupRows.map((u) => ({
+        walletAddress: `${u.walletAddress.slice(0, 8)}...${u.walletAddress.slice(-4)}`,
+        createdAt: u.createdAt.toISOString(),
+        projectCount: u._count.projects,
+      })),
+    };
+  }
+
+  async getNewsletterSubscribers(limit = 20): Promise<NewsletterSubscriberList> {
+    const [count, recent] = await Promise.all([
+      this.prisma.statusSubscriber.count({ where: { active: true } }),
+      this.prisma.statusSubscriber.findMany({
+        where: { active: true },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        select: { email: true, createdAt: true },
+      }),
+    ]);
+
+    return {
+      count,
+      recent: recent.map((s) => ({
+        email: s.email,
+        createdAt: s.createdAt.toISOString(),
+      })),
     };
   }
 }

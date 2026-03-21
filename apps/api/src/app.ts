@@ -60,7 +60,8 @@ const challengeSchema = z.object({
 const verifySchema = z.object({
   walletAddress: z.string().trim().min(32),
   message: z.string().min(1),
-  signature: z.string().min(1)
+  signature: z.string().min(1),
+  referralCode: z.string().optional()
 });
 
 const createProjectSchema = z.object({
@@ -95,6 +96,7 @@ const updateProjectSchema = z.object({
   githubUrl: z.string().url().max(256).nullable().optional(),
   isPublic: z.boolean().optional(),
   publicSlug: z.string().trim().min(3).max(64).regex(/^[a-z0-9-]+$/).nullable().optional(),
+  leaderboardVisible: z.boolean().optional(),
 });
 
 const createApiKeySchema = z.object({
@@ -834,6 +836,8 @@ export async function buildApiApp(input: {
         status: user.status,
         onboardingDismissed: fullUser?.onboardingDismissed ?? false,
         createdAt: fullUser?.createdAt?.toISOString() ?? null,
+        tosAcceptedAt: fullUser?.tosAcceptedAt?.toISOString() ?? null,
+        emailVerified: fullUser?.emailVerified ?? false,
       },
       projectCount: projects.length
     };
@@ -859,6 +863,12 @@ export async function buildApiApp(input: {
       ...(email !== undefined ? { email } : {}),
     });
 
+    return reply.send({ success: true });
+  });
+
+  app.post("/v1/me/accept-tos", async (request, reply) => {
+    const user = requireUser(request);
+    await input.repository.acceptTos(user.id);
     return reply.send({ success: true });
   });
 
@@ -922,6 +932,27 @@ export async function buildApiApp(input: {
         onboardingDismissed: user.onboardingDismissed ?? false,
       }
     });
+
+    // Handle referral conversion for new users (best-effort, non-blocking)
+    if (body.referralCode) {
+      void (async () => {
+        try {
+          const referrer = await input.repository.findUserByReferralCode(body.referralCode!);
+          if (referrer) {
+            const click = await input.repository.findLatestUnconvertedClick(referrer.id);
+            if (click) {
+              await input.repository.markReferralConverted(click.id);
+              await input.repository.createNotification({
+                userId: referrer.id,
+                type: "referral.conversion",
+                title: "Referral joined!",
+                message: "Someone joined Fyxvo through your referral link.",
+              });
+            }
+          }
+        } catch { /* best-effort */ }
+      })();
+    }
   });
 
   app.post("/v1/interest", async (request, reply) => {
@@ -1153,7 +1184,8 @@ export async function buildApiApp(input: {
       ...(body.notes !== undefined ? { notes: body.notes } : {}),
       ...(body.githubUrl !== undefined ? { githubUrl: body.githubUrl } : {}),
       ...(body.isPublic !== undefined ? { isPublic: body.isPublic } : {}),
-      ...(body.publicSlug !== undefined ? { publicSlug: body.publicSlug } : {})
+      ...(body.publicSlug !== undefined ? { publicSlug: body.publicSlug } : {}),
+      ...(body.leaderboardVisible !== undefined ? { leaderboardVisible: body.leaderboardVisible } : {})
     };
 
     return {
@@ -1667,6 +1699,21 @@ export async function buildApiApp(input: {
         })
       })
     };
+  });
+
+  app.get("/v1/admin/platform-stats", async (request) => {
+    const user = requireUser(request);
+    requireAdmin(user);
+    return {
+      item: await input.repository.getAdminPlatformStats()
+    };
+  });
+
+  app.get("/v1/admin/newsletter-subscribers", async (request) => {
+    const user = requireUser(request);
+    requireAdmin(user);
+    const query = z.object({ limit: z.coerce.number().int().min(1).max(100).optional() }).parse(request.query);
+    return input.repository.getNewsletterSubscribers(query.limit);
   });
 
   // GET /v1/admin/assistant/stats — assistant usage metrics (admin only)
@@ -2625,6 +2672,43 @@ ${projectContext?.requestCount !== undefined ? `- Lifetime requests: ${projectCo
     }).parse(request.body);
     const post = await input.repository.createBlogPost(body);
     return reply.status(201).send(post);
+  });
+
+  // ── Newsletter subscribe ──────────────────────────────────────────────────
+  app.post("/v1/newsletter/subscribe", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } }
+  }, async (request, reply) => {
+    const body = z.object({ email: z.string().email() }).parse(request.body);
+    await input.repository.subscribeNewsletter({ email: body.email, source: "landing" });
+    return reply.status(200).send({ success: true });
+  });
+
+  // ── Leaderboard (public) ──────────────────────────────────────────────────
+  app.get("/v1/leaderboard", async () => {
+    return { entries: await input.repository.getLeaderboard() };
+  });
+
+  // ── Email verification prep ───────────────────────────────────────────────
+  app.post("/v1/me/verify-email/request", async (request, reply) => {
+    requireUser(request);
+    return reply.status(503).send({
+      error: "email_delivery_not_enabled",
+      message: "Email delivery is not yet enabled. Verification will be available in a future release."
+    });
+  });
+
+  app.post("/v1/me/verify-email/confirm", async (request, reply) => {
+    const body = z.object({ token: z.string() }).parse(request.body);
+    const result = await input.repository.verifyEmail(body.token);
+    if (!result.success) {
+      return reply.status(400).send({ error: "invalid_token", message: "Token is invalid or expired." });
+    }
+    return { success: true };
+  });
+
+  app.get("/v1/me/tos-status", async (request) => {
+    const user = requireUser(request);
+    return input.repository.getTosStatus(user.id);
   });
 
   return app;

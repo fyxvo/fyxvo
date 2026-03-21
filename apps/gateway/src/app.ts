@@ -286,6 +286,66 @@ export async function buildGatewayApp(input: GatewayAppDependencies) {
         });
       }
 
+      const simulateQuery = (request.query as Record<string, string | undefined>)["simulate"];
+      const isSimulated = simulateQuery === "true" || simulateQuery === "1";
+
+      if (isSimulated) {
+        const firstRequest = Array.isArray(payload) ? payload[0] : payload;
+        const rpcMethod = firstRequest?.method;
+        const reqId = firstRequest?.id ?? null;
+
+        app.log.info(
+          {
+            event: "gateway.simulate.request",
+            requestId: request.id,
+            projectId: projectAccess.project.id,
+            apiKeyId: projectAccess.apiKey.id,
+            mode,
+            rpcMethod,
+            simulated: true,
+          },
+          "Gateway simulation mode request"
+        );
+
+        let result: unknown;
+        if (rpcMethod === "getHealth") {
+          result = "ok";
+        } else if (rpcMethod === "getSlot") {
+          result = 312847293;
+        } else if (rpcMethod === "getBalance") {
+          result = { context: { slot: 312847293 }, value: 1000000000 };
+        } else if (rpcMethod === "getLatestBlockhash") {
+          result = {
+            context: { slot: 312847293 },
+            value: {
+              blockhash: "SimulatedBlockhash1111111111111111111111111111",
+              lastValidBlockHeight: 312857293,
+            },
+          };
+        } else {
+          reply.header("x-fyxvo-simulated", "true");
+          reply.header("x-fyxvo-project-id", projectAccess.project.id);
+          reply.header("x-fyxvo-routing-mode", mode);
+          statusCode = 200;
+          reply.status(200).send({
+            jsonrpc: "2.0",
+            id: reqId,
+            error: {
+              code: -32600,
+              message: "Method not simulated. Remove ?simulate=true to use real data.",
+            },
+          });
+          return;
+        }
+
+        reply.header("x-fyxvo-simulated", "true");
+        reply.header("x-fyxvo-project-id", projectAccess.project.id);
+        reply.header("x-fyxvo-routing-mode", mode);
+        statusCode = 200;
+        reply.status(200).send({ jsonrpc: "2.0", id: reqId, result });
+        return;
+      }
+
       const pricing = calculateRequestPrice(payload, mode, input.env);
       const [fundingState, spendState, upstreamNodes] = await Promise.all([
         input.balanceResolver.getProjectFundingState(projectAccess.project),

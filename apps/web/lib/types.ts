@@ -6,6 +6,8 @@ export interface PortalUser {
   readonly status: "ACTIVE" | "INVITED" | "DISABLED";
   readonly onboardingDismissed?: boolean;
   readonly createdAt?: string | null;
+  readonly tosAcceptedAt?: string | null;
+  readonly emailVerified?: boolean;
 }
 
 export interface PortalProject {
@@ -26,6 +28,7 @@ export interface PortalProject {
   readonly githubUrl: string | null;
   readonly isPublic: boolean;
   readonly publicSlug: string | null;
+  readonly leaderboardVisible?: boolean;
   readonly archivedAt: string | null;
   readonly owner: PortalUser;
   readonly _count?: {

@@ -1003,13 +1003,13 @@ if (sig !== computed) return res.status(401).send('Unauthorized');`}
               id="sdk-reference"
               eyebrow="Section 8"
               title="SDK Reference"
-              description="@fyxvo/sdk TypeScript SDK — planned for post-alpha release."
+              description="@fyxvo/sdk — TypeScript SDK for the Fyxvo gateway and control-plane API."
             />
             <div className="space-y-5">
-              <Notice tone="neutral" title="SDK is not yet published">
-                {"@fyxvo/sdk"} is planned for post-alpha release. The examples below show the intended API. In the meantime, use the curl / fetch examples in the Standard RPC and Priority Relay sections — they are fully live today.
+              <Notice tone="neutral" title="SDK install">
+                Install {"@fyxvo/sdk"} with npm or pnpm. The package exposes a typed client for the gateway and API. Use the curl / fetch examples in the Standard RPC and Priority Relay sections if you prefer to integrate without the SDK.
               </Notice>
-              <CodeBlock code={sdkInstallCode} label="Install (coming soon)" />
+              <CodeBlock code={sdkInstallCode} label="Install" />
               <CodeBlock code={sdkClientCode} label="Create a client" />
               <CodeBlock code={sdkRpcCode} label="client.rpc() — standard relay" />
               <CodeBlock code={sdkPriorityCode} label="client.rpc() with /priority path — priority relay" />
